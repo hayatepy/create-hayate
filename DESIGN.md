@@ -78,7 +78,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 
 | 版 | 内容 | 受け入れ基準 |
 |---|---|---|
-| v0.1 | `api` / `workers` テンプレート + `--no-input` | 生成物の pytest がグリーン。README の 3 手で起動まで到達。CI が全テンプレートを回す |
+| ~~v0.1~~ | **完了(2026-07-22)**: `api` / `workers` テンプレート + `--no-input` | ✅ 生成物の pytest グリーン(ローカル + CI)。✅ 3 手で起動到達(api=uvicorn、workers=ローカル workerd で CRUD 実測)。✅ CI が全テンプレート生成 → pytest(初回 run 全 green)。wheel 同梱・uvx 実行も確認 |
 | v0.2 | `lambda` テンプレート | 同上 |
 | 以降 | `mcp` / `auth`(各パッケージの 0.x 公開後) | 同上 |
 
