@@ -1,0 +1,48 @@
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[project]
+name = "create-hayate"
+version = "0.1.0"
+description = "Scaffold a hayate project that is tested from minute one: uvx create-hayate my-app"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Yusuke Hayashi" }]
+keywords = ["hayate", "scaffolding", "project-template", "cli"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Code Generators",
+]
+dependencies = []
+
+[project.scripts]
+create-hayate = "create_hayate.cli:main"
+
+[project.urls]
+Repository = "https://github.com/hayatepy/create-hayate"
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["src/create_hayate/templates"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
