@@ -1,4 +1,5 @@
-# Keep SHA-pinned actions and the uv lockfile current in grouped weekly PRs.
+# Keep SHA-pinned actions and the uv lockfile current without automatically
+# changing declared dependency constraints.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -10,5 +11,6 @@ updates:
         patterns: ["*"]
   - package-ecosystem: uv
     directory: /
+    versioning-strategy: lockfile-only
     schedule:
       interval: weekly
