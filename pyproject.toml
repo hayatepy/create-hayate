@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "create-hayate"
-version = "0.1.0"
+version = "0.1.1"
 description = "Scaffold a hayate project that is tested from minute one: uvx create-hayate my-app"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -28,6 +28,7 @@ create-hayate = "create_hayate.cli:main"
 
 [project.urls]
 Repository = "https://github.com/hayatepy/create-hayate"
+Documentation = "https://github.com/hayatepy/create-hayate#readme"
 
 [dependency-groups]
 dev = [

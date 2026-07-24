@@ -17,7 +17,10 @@ uv run pywrangler dev
 | `api` (default) | TODO API + tests that call the app core directly | `uv run uvicorn app:app --reload` |
 | `workers` | The same app on Cloudflare Python Workers | `uv run pywrangler dev` / `deploy` |
 
-`lambda`, `mcp`, and `auth` templates follow as those packages ship.
+These are the complete templates in the current 0.1 line. Authentication and
+MCP are available as ecosystem packages today; their scaffold templates will
+land only after the combined onboarding path has been validated with external
+users.
 
 ## Design
 
@@ -29,6 +32,9 @@ uv run pywrangler dev
 
 The internal design memo (Japanese, per project convention) lives in
 [DESIGN.md](DESIGN.md).
+
+> **Status: alpha (0.1.x).** Generated API and Workers projects are exercised
+> in CI against their real dependency resolution and test suites.
 
 ## License
 
