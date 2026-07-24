@@ -15,8 +15,12 @@ workerd needed.
 
 ## Develop locally
 
+The Workers runtime currently uses Python 3.13 and Pywrangler requires
+Node.js 24. The generated `.node-version` and `.nvmrc` files let common
+version managers select the supported Node release.
+
 ```sh
-uv run pywrangler dev
+uv run python manage_workers.py dev
 ```
 
 Then:
@@ -29,5 +33,5 @@ curl localhost:8787/todos
 ## Deploy
 
 ```sh
-uv run pywrangler deploy
+uv run python manage_workers.py deploy
 ```

@@ -1,4 +1,6 @@
+import importlib.util
 import io
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,6 +34,49 @@ def test_workers_template_wires_wrangler(tmp_path, monkeypatch):
     dest = _generate(tmp_path, monkeypatch, template="workers")
     assert 'name = "demo-app"' in (dest / "wrangler.toml").read_text(encoding="utf-8")
     assert (dest / "entry.py").is_file()
+    assert (dest / "manage_workers.py").is_file()
+    assert (dest / ".node-version").read_text(encoding="utf-8") == "24\n"
+    assert (dest / ".nvmrc").read_text(encoding="utf-8") == "24\n"
+
+
+def _load_workers_launcher(dest):
+    spec = importlib.util.spec_from_file_location(
+        "generated_manage_workers",
+        dest / "manage_workers.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_workers_launcher_rejects_unsupported_node(tmp_path, monkeypatch, capsys):
+    launcher = _load_workers_launcher(
+        _generate(tmp_path, monkeypatch, template="workers"),
+    )
+    monkeypatch.setattr(launcher, "_node_version", lambda: "v26.0.0")
+
+    assert launcher.main(["dev"]) == 2
+    assert "requires Node.js 24" in capsys.readouterr().err
+
+
+def test_workers_launcher_proxies_supported_node(tmp_path, monkeypatch):
+    launcher = _load_workers_launcher(
+        _generate(tmp_path, monkeypatch, template="workers"),
+    )
+    monkeypatch.setattr(launcher, "_node_version", lambda: "v24.18.0")
+    monkeypatch.setattr(launcher.shutil, "which", lambda _name: "/bin/pywrangler")
+    monkeypatch.setattr(
+        launcher.subprocess,
+        "run",
+        lambda command, **_kwargs: (
+            SimpleNamespace(returncode=7)
+            if command[0] == "/bin/pywrangler"
+            else pytest.fail(f"unexpected command: {command}")
+        ),
+    )
+
+    assert launcher.main(["deploy", "--dry-run"]) == 7
 
 
 def test_api_and_workers_share_the_same_app(tmp_path, monkeypatch):

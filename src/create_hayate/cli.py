@@ -28,7 +28,11 @@ _NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
 # Bundled name -> generated name. Build backends drop dotfiles from wheels,
 # so dotfiles are bundled without the leading dot.
-_RENAMES = {"gitignore": ".gitignore"}
+_RENAMES = {
+    "gitignore": ".gitignore",
+    "node-version": ".node-version",
+    "nvmrc": ".nvmrc",
+}
 
 _SKIP_DIRS = {"__pycache__"}
 
@@ -105,7 +109,11 @@ def main(argv: list[str] | None = None) -> int:
         shutil.rmtree(dest, ignore_errors=True)
         raise
 
-    serve = "uv run uvicorn app:app --reload" if template == "api" else "uv run pywrangler dev"
+    serve = (
+        "uv run uvicorn app:app --reload"
+        if template == "api"
+        else "uv run python manage_workers.py dev"
+    )
     print(f"\nCreated {args.name}/ from the {template} template. Next:\n")
     print(f"  cd {args.name}")
     print("  uv run pytest")
