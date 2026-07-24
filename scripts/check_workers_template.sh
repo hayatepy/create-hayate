@@ -22,8 +22,7 @@ node --experimental-wasm-stack-switching --version >/dev/null
   "${repo_dir}/.venv/bin/create-hayate" demo-app --template workers --no-input
   cd demo-app
   uv sync
-  uv run pywrangler sync
-  uv run pywrangler dev --port "${port}"
+  uv run python manage_workers.py dev --port "${port}"
 ) >"${log_file}" 2>&1 &
 server_pid=$!
 

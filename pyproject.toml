@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "create-hayate"
-version = "0.1.2"
+version = "0.1.3"
 description = "Scaffold a hayate project that is tested from minute one: uvx create-hayate my-app"
 readme = "README.md"
 requires-python = ">=3.12"

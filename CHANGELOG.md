@@ -2,6 +2,16 @@
 
 All notable changes to create-hayate are documented here.
 
+## [0.1.3] - 2026-07-25
+
+### Fixed
+
+- Align generated Workers projects with workerd's Python 3.13 runtime and
+  Pywrangler's supported Node.js 24 release.
+- Add a cross-platform Workers launcher that rejects unsupported Node
+  runtimes before Pywrangler can silently create an incomplete dependency
+  bundle, and exercise that documented command against real workerd in CI.
+
 ## [0.1.2] - 2026-07-24
 
 ### Changed
