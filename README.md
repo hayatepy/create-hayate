@@ -31,7 +31,7 @@ users.
 - One question at most (the template); `--no-input` for scripts and CI.
 
 The internal design memo (Japanese, per project convention) lives in
-[DESIGN.md](DESIGN.md).
+[DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
 > **Status: alpha (0.1.x).** Generated API and Workers projects are exercised
 > in CI against their real dependency resolution and test suites.

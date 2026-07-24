@@ -1,0 +1,28 @@
+# Changelog
+
+All notable changes to create-hayate are documented here.
+
+## [0.1.2] - 2026-07-24
+
+### Changed
+
+- Generate the Workers template in CI and drive its CRUD API through a real
+  workerd process, in addition to the direct application tests.
+- Mark the distribution as typed and validate the public source with strict
+  mypy.
+- Audit locked dependencies on every change and publish an SPDX SBOM plus
+  GitHub build and SBOM attestations with each release.
+
+## [0.1.1] - 2026-07-24
+
+### Changed
+
+- Align package metadata, CI, documentation, and the protected release path
+  for the public 0.1 line.
+
+## [0.1.0] - 2026-07-22
+
+### Added
+
+- Add a zero-dependency CLI with bundled API and Cloudflare Workers templates,
+  generated-project tests, and non-interactive operation.

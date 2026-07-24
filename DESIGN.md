@@ -63,6 +63,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 ## 5. テスト戦略
 
 - CI: 全テンプレート × 「生成 → `uv sync` → `uv run pytest`」を実行。
+  Workers テンプレートはさらに実 workerd を起動し、HTTP 経由の CRUD まで固定する。
 - 本体の新リリース時にテンプレートの hayate バージョンを上げる(Renovate 等は使わず
   リリースチェックリストに載せる。依存が hayate だけなので手動で足りる)。
 

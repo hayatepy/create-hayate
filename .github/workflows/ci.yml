@@ -27,9 +27,10 @@ jobs:
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           python-version: ${{ matrix.python }}
-      - run: uv sync
+      - run: uv sync --locked
       - run: uv run ruff check src tests
       - run: uv run ruff format --check src tests
+      - run: uv run mypy src
       - run: uv run pytest -q
 
   # The reason this repo exists: every template must generate, resolve its
@@ -56,7 +57,37 @@ jobs:
       - run: uv run pytest -q
         working-directory: demo-app
 
+  # Generate the Workers template and drive CRUD through a real workerd.
+  workerd:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: "24"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+      - run: uv sync --locked
+      - run: bash scripts/check_workers_template.sh
+
   # Supply-chain audit of these workflows (https://docs.zizmor.sh).
+  audit-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run --with pip-audit==2.10.0 pip-audit
+
   lint-workflows:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -65,6 +96,6 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
-      - run: uvx zizmor .github/workflows
+      - run: uvx zizmor==1.28.0 .github/workflows
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

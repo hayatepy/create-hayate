@@ -12,6 +12,7 @@ import re
 import shutil
 import sys
 from importlib.resources import files
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from string import Template
 
@@ -32,7 +33,7 @@ _RENAMES = {"gitignore": ".gitignore"}
 _SKIP_DIRS = {"__pycache__"}
 
 
-def _render_tree(src, dest: Path, variables: dict[str, str]) -> None:
+def _render_tree(src: Traversable, dest: Path, variables: dict[str, str]) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     for entry in src.iterdir():
         if entry.name in _SKIP_DIRS:
