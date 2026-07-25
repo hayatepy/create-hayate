@@ -1,7 +1,8 @@
 # create-hayate
 
-Project scaffolding for [hayate](https://github.com/hayatepy/hayate) —
-`uvx create-hayate my-app` and you have a running, tested project in minutes.
+API, Cloudflare Workers, and MCP 2025-11-25 project scaffolding for
+[hayate](https://github.com/hayatepy/hayate) — `uvx create-hayate my-app`
+and you have a running, tested project in minutes.
 
 ```sh
 uvx create-hayate my-app --template workers
@@ -16,11 +17,13 @@ uv run python manage_workers.py dev
 |---|---|---|
 | `api` (default) | TODO API + tests that call the app core directly | `uv run uvicorn app:app --reload` |
 | `workers` | The same app on Cloudflare Python Workers | `uv run python manage_workers.py dev` / `deploy` |
+| `mcp` | MCP 2025-11-25 server shared by ASGI and Workers | Uvicorn or `manage_workers.py` |
 
-These are the complete templates in the current 0.1 line. Authentication and
-MCP are available as ecosystem packages today; their scaffold templates will
-land only after the combined onboarding path has been validated with external
-users.
+The `mcp` template uses the Workers-native, schema-validated
+[`hayate-mcp`](https://github.com/hayatepy/hayate-mcp) runtime on both
+platforms. It does not require `hayate-auth`: connect an existing identity
+provider through request context, or add the authorization server package
+when the application owns authentication.
 
 ## Design
 
@@ -36,7 +39,7 @@ users.
 The internal design memo (Japanese, per project convention) lives in
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.1.x).** Generated API and Workers projects are exercised
+> **Status: alpha (0.2.x).** Generated API, Workers, and MCP projects are exercised
 > in CI against their real dependency resolution and test suites.
 
 ## License

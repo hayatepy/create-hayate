@@ -19,6 +19,7 @@ from string import Template
 TEMPLATES: dict[str, str] = {
     "api": "TODO API + pytest, served by uvicorn",
     "workers": "the same app on Cloudflare Python Workers",
+    "mcp": "MCP 2025-11-25 on ASGI and Cloudflare Workers",
 }
 DEFAULT_TEMPLATE = "api"
 

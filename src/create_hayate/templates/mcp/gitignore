@@ -1,0 +1,6 @@
+.venv/
+.venv-workers/
+python_modules/
+__pycache__/
+.pytest_cache/
+.wrangler/
