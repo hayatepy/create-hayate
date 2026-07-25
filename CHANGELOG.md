@@ -2,6 +2,18 @@
 
 All notable changes to create-hayate are documented here.
 
+## [0.2.0] - 2026-07-25
+
+### Added
+
+- Add an `mcp` template with MCP 2025-11-25, input/output JSON Schema
+  validation, request context, direct application tests, and one application
+  that runs unchanged on ASGI and Cloudflare Python Workers.
+- Exercise generated MCP projects through real workerd in CI without requiring
+  `hayate-auth`, so existing identity providers remain a first-class path.
+- Keep generated Workers launchers compatible with current Node.js 24 by
+  filtering Pywrangler's obsolete experimental WASM flag.
+
 ## [0.1.3] - 2026-07-25
 
 ### Fixed

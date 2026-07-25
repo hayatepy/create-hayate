@@ -1,5 +1,6 @@
 import importlib.util
 import io
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -30,8 +31,9 @@ def test_no_placeholder_survives_generation(tmp_path, monkeypatch, template):
             assert "$project_name" not in path.read_text(encoding="utf-8"), path
 
 
-def test_workers_template_wires_wrangler(tmp_path, monkeypatch):
-    dest = _generate(tmp_path, monkeypatch, template="workers")
+@pytest.mark.parametrize("template", ["workers", "mcp"])
+def test_workers_templates_wire_wrangler(tmp_path, monkeypatch, template):
+    dest = _generate(tmp_path, monkeypatch, template=template)
     assert 'name = "demo-app"' in (dest / "wrangler.toml").read_text(encoding="utf-8")
     assert (dest / "entry.py").is_file()
     assert (dest / "manage_workers.py").is_file()
@@ -79,12 +81,58 @@ def test_workers_launcher_proxies_supported_node(tmp_path, monkeypatch):
     assert launcher.main(["deploy", "--dry-run"]) == 7
 
 
+def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
+    launcher = _load_workers_launcher(
+        _generate(tmp_path, monkeypatch, template="workers"),
+    )
+    monkeypatch.setattr(launcher, "_node_version", lambda: "v24.18.0")
+    monkeypatch.setattr(
+        launcher.shutil,
+        "which",
+        lambda name: f"/bin/{name}",
+    )
+    observed = {}
+
+    def run(command, **kwargs):
+        observed["command"] = command
+        observed["environment"] = kwargs["env"]
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(launcher.subprocess, "run", run)
+
+    assert launcher.main(["dev"]) == 0
+    environment = observed["environment"]
+    assert observed["command"] == ["/bin/pywrangler", "dev"]
+    assert environment["CREATE_HAYATE_REAL_NODE"] == "/bin/node"
+    shim_dir = Path(environment["PATH"].split(launcher.os.pathsep)[0])
+    assert shim_dir.name.startswith("create-hayate-node-")
+
+
 def test_api_and_workers_share_the_same_app(tmp_path, monkeypatch):
     api = _generate(tmp_path, monkeypatch, name="proj-alpha", template="api")
     workers = _generate(tmp_path, monkeypatch, name="proj-beta", template="workers")
     read = lambda d, p: (d / p).read_text(encoding="utf-8").replace(d.name, "X")  # noqa: E731
     assert read(api, "app.py") == read(workers, "app.py")
     assert read(api, "tests/test_app.py") == read(workers, "tests/test_app.py")
+
+
+def test_workers_profiles_share_the_same_launcher(tmp_path, monkeypatch):
+    workers = _generate(tmp_path, monkeypatch, name="proj-workers", template="workers")
+    mcp = _generate(tmp_path, monkeypatch, name="proj-mcp", template="mcp")
+
+    assert (workers / "manage_workers.py").read_text() == (mcp / "manage_workers.py").read_text()
+    assert (workers / "node_compat.py").read_text() == (mcp / "node_compat.py").read_text()
+
+
+def test_mcp_template_uses_published_workers_runtime(tmp_path, monkeypatch):
+    dest = _generate(tmp_path, monkeypatch, template="mcp")
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    app = (dest / "app.py").read_text(encoding="utf-8")
+
+    assert '"hayate-mcp>=0.10,<0.11"' in project
+    assert "WorkerMcpMount" in app
+    assert "get_request_context" in app
+    assert '"taskSupport": "forbidden"' in app
 
 
 def test_rejects_existing_directory(tmp_path, monkeypatch):
@@ -110,7 +158,14 @@ def test_non_tty_defaults_to_api(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     ("answer", "expected"),
-    [("", "api"), ("1", "api"), ("2", "workers"), ("workers", "workers")],
+    [
+        ("", "api"),
+        ("1", "api"),
+        ("2", "workers"),
+        ("3", "mcp"),
+        ("workers", "workers"),
+        ("mcp", "mcp"),
+    ],
 )
 def test_choose_template_answers(monkeypatch, capsys, answer, expected):
     monkeypatch.setattr("builtins.input", lambda prompt="": answer)
@@ -118,6 +173,6 @@ def test_choose_template_answers(monkeypatch, capsys, answer, expected):
 
 
 def test_choose_template_reprompts_until_valid(monkeypatch, capsys):
-    answers = iter(["nope", "9", "2"])
+    answers = iter(["nope", "9", "3"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
-    assert cli._choose_template() == "workers"
+    assert cli._choose_template() == "mcp"

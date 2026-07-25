@@ -46,6 +46,8 @@ jobs:
             python: "3.14"
           - template: workers
             python: "3.13"
+          - template: mcp
+            python: "3.13"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -60,11 +62,17 @@ jobs:
         working-directory: demo-app
       - run: uv run pytest -q
         working-directory: demo-app
+      - if: matrix.template == 'mcp'
+        run: bash scripts/check_mcp_asgi_template.sh demo-app
 
   # Generate the Workers template and drive CRUD through a real workerd.
   workerd:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        template: [workers, mcp]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,7 +84,9 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --locked
-      - run: bash scripts/check_workers_template.sh
+      - run: bash scripts/check_workers_template.sh "$TEMPLATE"
+        env:
+          TEMPLATE: ${{ matrix.template }}
 
   # Supply-chain audit of these workflows (https://docs.zizmor.sh).
   audit-dependencies:

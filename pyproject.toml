@@ -4,14 +4,14 @@ build-backend = "uv_build"
 
 [project]
 name = "create-hayate"
-version = "0.1.3"
-description = "Scaffold a hayate project that is tested from minute one: uvx create-hayate my-app"
+version = "0.2.0"
+description = "Scaffold tested Hayate API, Cloudflare Workers, and MCP 2025-11-25 projects"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Yusuke Hayashi" }]
-keywords = ["hayate", "scaffolding", "project-template", "cli"]
+keywords = ["hayate", "scaffolding", "project-template", "cli", "mcp", "cloudflare-workers"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
