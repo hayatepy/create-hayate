@@ -1,5 +1,9 @@
 # $project_name
 
+> **Hayate ecosystem:** [Start here](https://github.com/hayatepy/.github/blob/main/docs/START.md)
+> · [Production golden app](https://github.com/hayatepy/golden-app)
+> · [Tested compatibility](https://github.com/hayatepy/.github/blob/main/docs/COMPATIBILITY.md)
+
 A Hayate application composed from: **$feature_summary**.
 
 The application core in `src/app.py` is unchanged between ASGI and Cloudflare
