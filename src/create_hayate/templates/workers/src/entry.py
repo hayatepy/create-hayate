@@ -1,6 +1,6 @@
 """Cloudflare Python Workers entry: the same app, exposed through the adapter."""
 
 from app import app
-from hayate.adapters.workers import to_workers
+from hayate.adapters.workers import $workers_adapter
 
-Default = to_workers(app)
+$workers_export

@@ -26,3 +26,8 @@ async def test_crud_roundtrip():
 async def test_create_requires_string_title():
     res = await app.request("/todos", method="POST", json={"title": 42})
     assert res.status == 400
+
+
+async def test_internationalized_hostname_uses_uts46():
+    res = await app.request("/canonicalize")
+    assert await res.json() == {"hostname": "xn--wgv71a119e.example"}

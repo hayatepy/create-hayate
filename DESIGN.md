@@ -43,7 +43,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | 名前 | 内容 | 検証 |
 |---|---|---|
 | `api` | TODO API + pytest(`app.request` 直叩き)+ uvicorn 起動 | `uv run pytest` |
-| `workers` | 同一アプリ + wrangler.toml + pywrangler 構成 | `uv run pytest`(+ README に `pywrangler dev` 手順) |
+| `workers` | 同一アプリ + wrangler.toml + pywrangler 構成。既定は `WorkerEntrypoint`、明示指定時のみ HTTP 専用 global handler | `uv run pytest`(+ README に `pywrangler dev` 手順) |
 | `mcp` | 2025-11-25 tools server + Schema検証 + request context。ASGI / Workers共通 | `uv run pytest` + 実workerd |
 
 - **方針: テンプレートの中身は本体 examples/ を正とする**。乖離は CI で検出(§5)。

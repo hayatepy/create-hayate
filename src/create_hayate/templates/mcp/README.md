@@ -5,6 +5,8 @@ An MCP 2025-11-25 tools server built with
 [hayate-mcp](https://github.com/hayatepy/hayate-mcp). The same `app.py` runs
 on ASGI and Cloudflare Python Workers.
 
+$workers_entrypoint_summary
+
 ## Test
 
 ```sh
@@ -12,12 +14,13 @@ uv run pytest
 ```
 
 The tests cover initialization, discovery, tool execution, request context,
-and model-correctable schema errors without opening a socket.
+model-correctable schema errors, and UTS-46 internationalized hostnames without
+opening a socket.
 
 ## Run on ASGI
 
 ```sh
-uv run uvicorn app:app --reload
+uv run uvicorn app:app --app-dir src --reload
 ```
 
 The MCP endpoint is `http://127.0.0.1:8000/mcp`.
@@ -45,3 +48,21 @@ authorization server.
 ```sh
 uv run python manage_workers.py deploy
 ```
+
+The generated `wrangler.toml` omits bytecode caches, package metadata, ASGI
+and AWS adapters, and the Workers WSGI bridge. It deliberately retains
+`uts46`. Because `*.dist-info` is excluded, `importlib.metadata` cannot inspect
+installed distributions at runtime; remove that exclusion if your application
+needs package metadata. Application code lives under `src/`, which keeps local
+virtual environments, tests, and deployment-management scripts outside
+Wrangler's module root while allowing new `src/` modules to be discovered.
+
+The default class entrypoint preserves named RPC methods and class handlers.
+An HTTP-only MCP transport can opt into the lower-overhead global compatibility
+path at generation time:
+
+```sh
+uvx create-hayate $project_name --template mcp --workers-entrypoint global
+```
+
+That path cannot expose named RPC methods or class handlers such as `scheduled`.

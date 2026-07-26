@@ -86,6 +86,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=f"never prompt; --template or the default ({DEFAULT_TEMPLATE}) is used",
     )
+    parser.add_argument(
+        "--workers-entrypoint",
+        choices=("class", "global"),
+        default="class",
+        help=(
+            "Workers handler shape: the feature-complete WorkerEntrypoint class "
+            "(default), or the explicit HTTP-only global compatibility path"
+        ),
+    )
     args = parser.parse_args(argv)
 
     if not _NAME_RE.match(args.name):
@@ -103,9 +112,35 @@ def main(argv: list[str] | None = None) -> int:
         interactive = not args.no_input and sys.stdin is not None and sys.stdin.isatty()
         template = _choose_template() if interactive else DEFAULT_TEMPLATE
 
+    if template == "api" and args.workers_entrypoint != "class":
+        parser.error("--workers-entrypoint applies only to workers and mcp templates")
+
+    global_entrypoint = args.workers_entrypoint == "global"
+    variables = {
+        "project_name": args.name,
+        "workers_adapter": "to_workers_global" if global_entrypoint else "to_workers",
+        "workers_export": (
+            "on_fetch = to_workers_global(app)"
+            if global_entrypoint
+            else "Default = to_workers(app)"
+        ),
+        "workers_compatibility_flags": (
+            '"python_workers", "disable_python_no_global_handlers"'
+            if global_entrypoint
+            else '"python_workers"'
+        ),
+        "workers_entrypoint_summary": (
+            "This project explicitly uses Hayate's lower-overhead global handler. "
+            "It is HTTP-only: named RPC methods and class handlers such as "
+            "`scheduled` require the default `WorkerEntrypoint` mode."
+            if global_entrypoint
+            else "This project uses the default `WorkerEntrypoint` class, preserving "
+            "named RPC methods and class handlers such as `scheduled`."
+        ),
+    }
     src = files("create_hayate").joinpath("templates", template)
     try:
-        _render_tree(src, dest, {"project_name": args.name})
+        _render_tree(src, dest, variables)
     except BaseException:
         shutil.rmtree(dest, ignore_errors=True)
         raise

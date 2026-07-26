@@ -8,6 +8,11 @@ MCP_HEADERS = {
 }
 
 
+async def test_internationalized_hostname_uses_uts46():
+    response = await app.request("/canonicalize")
+    assert await response.json() == {"hostname": "xn--wgv71a119e.example"}
+
+
 async def test_initializes_and_lists_schema_validated_tool():
     response = await app.request(
         "/mcp",

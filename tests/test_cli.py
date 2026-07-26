@@ -9,16 +9,17 @@ from create_hayate import cli
 from create_hayate.cli import TEMPLATES, main
 
 
-def _generate(tmp_path, monkeypatch, name="demo-app", template="api"):
+def _generate(tmp_path, monkeypatch, name="demo-app", template="api", extra_args=()):
     monkeypatch.chdir(tmp_path)
-    assert main([name, "--template", template, "--no-input"]) == 0
+    assert main([name, "--template", template, "--no-input", *extra_args]) == 0
     return tmp_path / name
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 def test_generates_a_complete_project(tmp_path, monkeypatch, template):
     dest = _generate(tmp_path, monkeypatch, template=template)
-    for expected in ("pyproject.toml", "README.md", ".gitignore", "app.py", "tests/test_app.py"):
+    app_path = "app.py" if template == "api" else "src/app.py"
+    for expected in ("pyproject.toml", "README.md", ".gitignore", app_path, "tests/test_app.py"):
         assert (dest / expected).is_file(), expected
     assert 'name = "demo-app"' in (dest / "pyproject.toml").read_text(encoding="utf-8")
 
@@ -34,11 +35,81 @@ def test_no_placeholder_survives_generation(tmp_path, monkeypatch, template):
 @pytest.mark.parametrize("template", ["workers", "mcp"])
 def test_workers_templates_wire_wrangler(tmp_path, monkeypatch, template):
     dest = _generate(tmp_path, monkeypatch, template=template)
-    assert 'name = "demo-app"' in (dest / "wrangler.toml").read_text(encoding="utf-8")
-    assert (dest / "entry.py").is_file()
+    wrangler = (dest / "wrangler.toml").read_text(encoding="utf-8")
+    assert 'name = "demo-app"' in wrangler
+    assert 'compatibility_flags = ["python_workers"]' in wrangler
+    assert 'main = "src/entry.py"' in wrangler
+    assert "\nexclude = [" in wrangler
+    for excluded in (
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/*.dist-info/**",
+        "asgi.py",
+        "hayate/adapters/asgi.py",
+        "hayate/adapters/aws.py",
+        "workers/wsgi.py",
+    ):
+        assert f'"{excluded}"' in wrangler
+    assert "uts46" not in wrangler
+    assert (dest / "src/entry.py").is_file()
+    entry = (dest / "src/entry.py").read_text(encoding="utf-8")
+    assert "Default = to_workers(app)" in entry
+    assert "on_fetch" not in entry
     assert (dest / "manage_workers.py").is_file()
     assert (dest / ".node-version").read_text(encoding="utf-8") == "24\n"
     assert (dest / ".nvmrc").read_text(encoding="utf-8") == "24\n"
+
+
+@pytest.mark.parametrize("template", ["workers", "mcp"])
+def test_global_workers_entrypoint_requires_an_explicit_option(tmp_path, monkeypatch, template):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template=template,
+        extra_args=("--workers-entrypoint", "global"),
+    )
+    entry = (dest / "src/entry.py").read_text(encoding="utf-8")
+    wrangler = (dest / "wrangler.toml").read_text(encoding="utf-8")
+
+    assert "on_fetch = to_workers_global(app)" in entry
+    assert "Default =" not in entry
+    assert '"disable_python_no_global_handlers"' in wrangler
+    assert "HTTP-only" in (dest / "README.md").read_text(encoding="utf-8")
+
+
+def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "demo-app",
+                "--template",
+                "api",
+                "--no-input",
+                "--workers-entrypoint",
+                "global",
+            ]
+        )
+    assert not (tmp_path / "demo-app").exists()
+
+
+@pytest.mark.parametrize(
+    ("template", "dependency"),
+    [
+        ("api", '"hayate>=0.11.1,<0.12"'),
+        ("workers", '"hayate>=0.11.1,<0.12"'),
+        ("mcp", '"hayate>=0.11.1,<0.12"'),
+        ("mcp", '"hayate-mcp>=0.10,<0.11"'),
+    ],
+)
+def test_templates_pin_released_compatibility_lines(
+    tmp_path,
+    monkeypatch,
+    template,
+    dependency,
+):
+    dest = _generate(tmp_path, monkeypatch, template=template)
+    assert dependency in (dest / "pyproject.toml").read_text(encoding="utf-8")
 
 
 def _load_workers_launcher(dest):
@@ -112,7 +183,7 @@ def test_api_and_workers_share_the_same_app(tmp_path, monkeypatch):
     api = _generate(tmp_path, monkeypatch, name="proj-alpha", template="api")
     workers = _generate(tmp_path, monkeypatch, name="proj-beta", template="workers")
     read = lambda d, p: (d / p).read_text(encoding="utf-8").replace(d.name, "X")  # noqa: E731
-    assert read(api, "app.py") == read(workers, "app.py")
+    assert read(api, "app.py") == read(workers, "src/app.py")
     assert read(api, "tests/test_app.py") == read(workers, "tests/test_app.py")
 
 
@@ -127,8 +198,9 @@ def test_workers_profiles_share_the_same_launcher(tmp_path, monkeypatch):
 def test_mcp_template_uses_published_workers_runtime(tmp_path, monkeypatch):
     dest = _generate(tmp_path, monkeypatch, template="mcp")
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    app = (dest / "app.py").read_text(encoding="utf-8")
+    app = (dest / "src/app.py").read_text(encoding="utf-8")
 
+    assert '"hayate>=0.11.1,<0.12"' in project
     assert '"hayate-mcp>=0.10,<0.11"' in project
     assert "WorkerMcpMount" in app
     assert "get_request_context" in app

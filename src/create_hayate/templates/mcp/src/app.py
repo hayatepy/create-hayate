@@ -6,7 +6,7 @@ validation, protocol handling, and request context come from hayate-mcp.
 
 import json
 
-from hayate import Context, Hayate
+from hayate import URL, Context, Hayate
 from hayate_mcp import WorkerMcpMount, WorkerMcpServer, get_request_context
 
 app = Hayate()
@@ -21,6 +21,11 @@ server = WorkerMcpServer(
 @app.get("/")
 async def home(c: Context):
     return c.json({"name": "$project_name", "mcp_endpoint": "/mcp"})
+
+
+@app.get("/canonicalize")
+async def canonicalize(c: Context):
+    return c.json({"hostname": URL("https://日本語.example/").hostname})
 
 
 @server.tool(
