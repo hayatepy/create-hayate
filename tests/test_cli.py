@@ -119,7 +119,7 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
     [
         ("api", (), '"hayate>=0.11.1,<0.12"'),
         ("workers", (), '"hayate>=0.11.1,<0.12"'),
-        ("mcp", (), '"hayate-mcp>=0.10,<0.11"'),
+        ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
         ("api", ("--with", "openapi"), '"hayate-openapi>=0.3,<0.4"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
@@ -213,7 +213,7 @@ def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monk
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
     registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
 
-    assert '"hayate-mcp>=0.10,<0.11"' in project
+    assert '"hayate-mcp>=0.11,<0.12"' in project
     assert (dest / "src/feature_mcp.py").is_file()
     assert "register_mcp(app)" in registrations
     assert (dest / "manage_workers.py").is_file()
