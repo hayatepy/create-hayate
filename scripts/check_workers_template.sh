@@ -25,9 +25,23 @@ if [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
 fi
 
+terminate_tree() {
+  local parent_pid="$1"
+  local child_pid
+  while read -r child_pid; do
+    if [[ -n "${child_pid}" ]]; then
+      terminate_tree "${child_pid}"
+    fi
+  done < <(pgrep -P "${parent_pid}" 2>/dev/null || true)
+  kill "${parent_pid}" 2>/dev/null || true
+}
+
 cleanup() {
   if [[ -n "${server_pid}" ]] && kill -0 "${server_pid}" 2>/dev/null; then
-    kill "${server_pid}" 2>/dev/null || true
+    # pywrangler launches uv -> Python -> npx -> workerd descendants. Killing
+    # only the wrapper shell can leave the listener alive long enough to
+    # collide with the next template check in the ecosystem gate.
+    terminate_tree "${server_pid}"
     wait "${server_pid}" 2>/dev/null || true
   fi
 }
