@@ -29,7 +29,7 @@ _FEATURE_ORDER = ("sql", "mcp", "openapi")
 _REGISTRATION_ORDER = ("access", "production", "mcp", "openapi")
 _DEPENDENCIES = {
     "openapi": "hayate-openapi>=0.3,<0.4",
-    "mcp": "hayate-mcp>=0.10,<0.11",
+    "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }
 
