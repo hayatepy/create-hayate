@@ -8,10 +8,18 @@ log_file="${test_dir}.${template}.workerd.log"
 port=8793
 server_pid=""
 ready_path="/"
+hayate_wheel="${HAYATE_ECOSYSTEM_WHEEL:-}"
 
 if [[ "${template}" != "workers" && "${template}" != "mcp" ]]; then
   echo "expected workers or mcp template, got: ${template}" >&2
   exit 2
+fi
+if [[ -n "${hayate_wheel}" ]]; then
+  if [[ ! -f "${hayate_wheel}" || "${hayate_wheel}" != *.whl ]]; then
+    echo "HAYATE_ECOSYSTEM_WHEEL must name an existing wheel: ${hayate_wheel}" >&2
+    exit 2
+  fi
+  hayate_wheel="$(cd "$(dirname "${hayate_wheel}")" && pwd)/$(basename "${hayate_wheel}")"
 fi
 if [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
@@ -32,8 +40,27 @@ node --version >/dev/null
   "${repo_dir}/.venv/bin/create-hayate" demo-app --template "${template}" --no-input
   cd demo-app
   uv sync
-  uv run pytest -q
-  uv run python manage_workers.py dev --port "${port}"
+  if [[ -n "${hayate_wheel}" ]]; then
+    # Test the generated CPython app against the same unpublished core wheel.
+    uv pip install \
+      --python .venv/bin/python \
+      --reinstall-package hayate \
+      --no-deps \
+      "${hayate_wheel}"
+  fi
+  uv run --no-sync pytest -q
+  if [[ -n "${hayate_wheel}" ]]; then
+    # pywrangler's pylock.toml sync cannot accept uv overrides. Complete its
+    # ordinary sync first, then replace only the portable Hayate package in
+    # the generated Worker bundle.
+    uv run --no-sync python manage_workers.py sync
+    uv pip install \
+      --target python_modules \
+      --reinstall \
+      --no-deps \
+      "${hayate_wheel}"
+  fi
+  uv run --no-sync python manage_workers.py dev --port "${port}"
 ) >"${log_file}" 2>&1 &
 server_pid=$!
 
