@@ -20,7 +20,7 @@ trap cleanup EXIT
 
 (
   cd "${project_dir}"
-  uv run uvicorn app:app --host 127.0.0.1 --port "${port}"
+  uv run uvicorn app:app --app-dir src --host 127.0.0.1 --port "${port}"
 ) >"${log_file}" 2>&1 &
 server_pid=$!
 

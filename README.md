@@ -34,12 +34,19 @@ when the application owns authentication.
 - The Workers template pins Python 3.13 and Node.js 24 to the versions used by
   workerd/Pywrangler, and its launcher fails fast on an unsupported Node
   runtime instead of producing an incomplete dependency bundle.
+- Generated projects use the Hayate 0.11 compatibility line. Workers uploads
+  exclude caches, package metadata, ASGI/AWS adapters, and the WSGI bridge
+  while retaining `uts46` for complete internationalized URL behavior.
+- `WorkerEntrypoint` remains the feature-complete default. HTTP-only services
+  can explicitly select the lower-overhead global compatibility path with
+  `--workers-entrypoint global`; it cannot expose named RPC methods or class
+  handlers such as `scheduled`.
 - One question at most (the template); `--no-input` for scripts and CI.
 
 The internal design memo (Japanese, per project convention) lives in
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.2.x).** Generated API, Workers, and MCP projects are exercised
+> **Status: alpha (0.3.x).** Generated API, Workers, and MCP projects are exercised
 > in CI against their real dependency resolution and test suites.
 
 ## License

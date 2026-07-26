@@ -5,6 +5,8 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 template="${1:-workers}"
 test_dir="$(mktemp -d)"
 log_file="${test_dir}.${template}.workerd.log"
+dry_run_log="${test_dir}.${template}.dry-run.log"
+bundle_dir="${test_dir}/${template}-bundle"
 port=8793
 server_pid=""
 ready_path="/"
@@ -23,6 +25,8 @@ if [[ -n "${hayate_wheel}" ]]; then
 fi
 if [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
+else
+  port=8794
 fi
 
 terminate_tree() {
@@ -74,6 +78,47 @@ node --version >/dev/null
       --no-deps \
       "${hayate_wheel}"
   fi
+  if ! uv run --no-sync python manage_workers.py deploy \
+    --dry-run \
+    --outdir "${bundle_dir}" >"${dry_run_log}" 2>&1; then
+    cat "${dry_run_log}"
+    exit 1
+  fi
+  upload_size="$(grep -F "Total Upload:" "${dry_run_log}" | tail -1)"
+  if [[ -z "${upload_size}" ]]; then
+    cat "${dry_run_log}"
+    echo "Wrangler dry-run did not report an upload size" >&2
+    exit 1
+  fi
+  echo "upload[${template}]=${upload_size}"
+  for excluded_path in \
+    ".venv" \
+    ".venv-workers" \
+    "tests" \
+    "manage_workers.py" \
+    "node_compat.py" \
+    "python_modules/asgi.py" \
+    "python_modules/hayate/adapters/asgi.py" \
+    "python_modules/hayate/adapters/aws.py" \
+    "python_modules/workers/wsgi.py"; do
+    if [[ -e "${bundle_dir}/${excluded_path}" ]]; then
+      echo "excluded path reached Wrangler upload: ${excluded_path}" >&2
+      exit 1
+    fi
+  done
+  if find "${bundle_dir}" -type d -name "*.dist-info" -print -quit | grep -q .; then
+    echo "package metadata reached Wrangler upload" >&2
+    exit 1
+  fi
+  if find "${bundle_dir}" \( -type f -name "*.pyc" -o -type d -name "__pycache__" \) \
+    -print -quit | grep -q .; then
+    echo "Python cache reached Wrangler upload" >&2
+    exit 1
+  fi
+  if [[ ! -f "${bundle_dir}/python_modules/uts46/_data.py" ]]; then
+    echo "required UTS-46 mapping is absent from Wrangler upload" >&2
+    exit 1
+  fi
   uv run --no-sync python manage_workers.py dev --port "${port}"
 ) >"${log_file}" 2>&1 &
 server_pid=$!
@@ -95,6 +140,13 @@ if [[ "${ready}" != true ]]; then
   exit 1
 fi
 
+grep -F "upload[${template}]=" "${log_file}" | tail -1
+canonicalized="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/canonicalize")"
+uv run python -c \
+  'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
+  "${canonicalized}"
+echo "contract[${template}].canonicalize=${canonicalized}"
+
 if [[ "${template}" == "workers" ]]; then
   created="$(
     curl --fail --silent --max-time 5 \
@@ -110,6 +162,8 @@ if [[ "${template}" == "workers" ]]; then
   uv run python -c \
     'import json,sys; assert any(todo["title"] == "generated worker" for todo in json.loads(sys.argv[1]))' \
     "${listed}"
+  echo "contract[workers].create=${created}"
+  echo "contract[workers].list=${listed}"
   exit 0
 fi
 
@@ -123,6 +177,7 @@ initialized="$(
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1])["result"]["protocolVersion"] == "2025-11-25"' \
   "${initialized}"
+echo "contract[mcp].initialize=${initialized}"
 
 called="$(
   curl --fail --silent --max-time 10 \
@@ -136,3 +191,4 @@ called="$(
 uv run python -c \
   'import json,sys; result=json.loads(sys.argv[1])["result"]; assert result["structuredContent"] == {"message":"Hello, Workerd!","request_id":"generated-workerd-1"}' \
   "${called}"
+echo "contract[mcp].tools_call=${called}"

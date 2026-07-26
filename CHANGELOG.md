@@ -2,6 +2,21 @@
 
 All notable changes to create-hayate are documented here.
 
+## [0.3.0] - 2026-07-26
+
+### Changed
+
+- Align every generated project with Hayate 0.11.1+, whose lazy runtime
+  adapter exports make the documented Workers exclusions deployable.
+- Keep the feature-complete `WorkerEntrypoint` class as the Workers default
+  while exposing the HTTP-only global handler through the explicit
+  `--workers-entrypoint global` option.
+- Reduce Workers uploads with safe module exclusions while retaining `uts46`;
+  document the package-metadata trade-off and verify internationalized
+  hostname behavior through real workerd.
+- Record Wrangler's dry-run upload size and successful HTTP/MCP contract
+  payloads in the real-workerd CI gate.
+
 ## [0.2.0] - 2026-07-25
 
 ### Added

@@ -5,7 +5,7 @@ Request/Response follow WHATWG Fetch semantics, so this app is a pure
 file works on Cloudflare Python Workers unchanged.
 """
 
-from hayate import Context, Hayate, HTTPException
+from hayate import URL, Context, Hayate, HTTPException
 
 app = Hayate()
 
@@ -22,6 +22,11 @@ def _next_id() -> str:
 @app.get("/todos")
 async def list_todos(c: Context):
     return c.json(list(TODOS.values()))
+
+
+@app.get("/canonicalize")
+async def canonicalize(c: Context):
+    return c.json({"hostname": URL("https://日本語.example/").hostname})
 
 
 @app.post("/todos")
