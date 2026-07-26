@@ -2,12 +2,15 @@
 
 All notable changes to create-hayate are documented here.
 
-## [0.4.2] - 2026-07-27
+## [0.4.3] - 2026-07-27
 
 ### Changed
 
 - Generate MCP and production projects on the released hayate-mcp 0.11 line,
   preserving MCP 2025-11-25 and existing Bearer/Cloudflare Access defaults.
+- Check installed distribution metadata against the public `__version__`
+  during ordinary CI. The signed v0.4.2 tag was rejected by this release
+  invariant before build and was never published.
 
 ## [0.4.1] - 2026-07-26
 
