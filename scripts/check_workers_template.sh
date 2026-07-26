@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+started_at="${SECONDS}"
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 template="${1:-workers}"
 test_dir="$(mktemp -d)"
@@ -11,9 +12,17 @@ port=8793
 server_pid=""
 ready_path="/"
 hayate_wheel="${HAYATE_ECOSYSTEM_WHEEL:-}"
+production_mode=false
+global_mode=false
 
-if [[ "${template}" != "workers" && "${template}" != "mcp" ]]; then
-  echo "expected workers or mcp template, got: ${template}" >&2
+if [[ "${template}" == "production" || "${template}" == "production-global" ]]; then
+  production_mode=true
+fi
+if [[ "${template}" == "production-global" ]]; then
+  global_mode=true
+fi
+if [[ "${template}" != "workers" && "${template}" != "mcp" && "${production_mode}" != true ]]; then
+  echo "expected workers, mcp, production, or production-global; got: ${template}" >&2
   exit 2
 fi
 if [[ -n "${hayate_wheel}" ]]; then
@@ -25,8 +34,19 @@ if [[ -n "${hayate_wheel}" ]]; then
 fi
 if [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
-else
+elif [[ "${template}" == "mcp" ]]; then
   port=8794
+  ready_path="/health"
+else
+  port=8795
+  if [[ "${global_mode}" == true ]]; then
+    port=8796
+  fi
+  ready_path="/health"
+fi
+auth_header=(-H "x-create-hayate-smoke: true")
+if [[ "${production_mode}" == true ]]; then
+  auth_header=(-H "cf-access-authenticated-user-email: workerd@example.com")
 fi
 
 terminate_tree() {
@@ -55,7 +75,15 @@ node --version >/dev/null
 
 (
   cd "${test_dir}"
-  "${repo_dir}/.venv/bin/create-hayate" demo-app --template "${template}" --no-input
+  if [[ "${production_mode}" == true ]]; then
+    create_args=(demo-app --template workers --preset production --no-input)
+    if [[ "${global_mode}" == true ]]; then
+      create_args+=(--workers-entrypoint global)
+    fi
+    "${repo_dir}/.venv/bin/create-hayate" "${create_args[@]}"
+  else
+    "${repo_dir}/.venv/bin/create-hayate" demo-app --template "${template}" --no-input
+  fi
   cd demo-app
   uv sync
   if [[ -n "${hayate_wheel}" ]]; then
@@ -67,6 +95,9 @@ node --version >/dev/null
       "${hayate_wheel}"
   fi
   uv run --no-sync pytest -q
+  if [[ "${production_mode}" == true ]]; then
+    uv run --no-sync python scripts/check_sql_contracts.py
+  fi
   if [[ -n "${hayate_wheel}" ]]; then
     # pywrangler's pylock.toml sync cannot accept uv overrides. Complete its
     # ordinary sync first, then replace only the portable Hayate package in
@@ -78,9 +109,12 @@ node --version >/dev/null
       --no-deps \
       "${hayate_wheel}"
   fi
-  if ! uv run --no-sync python manage_workers.py deploy \
-    --dry-run \
-    --outdir "${bundle_dir}" >"${dry_run_log}" 2>&1; then
+  deploy_args=(deploy --dry-run --outdir "${bundle_dir}")
+  if [[ "${production_mode}" == true ]]; then
+    deploy_args+=(--env production)
+  fi
+  if ! uv run --no-sync python manage_workers.py \
+    "${deploy_args[@]}" >"${dry_run_log}" 2>&1; then
     cat "${dry_run_log}"
     exit 1
   fi
@@ -119,6 +153,13 @@ node --version >/dev/null
     echo "required UTS-46 mapping is absent from Wrangler upload" >&2
     exit 1
   fi
+  if [[ "${production_mode}" == true ]]; then
+    if [[ ! -f "${bundle_dir}/python_modules/hayate_sql/__init__.py" ]]; then
+      echo "hayate-sql is absent from the production Worker bundle" >&2
+      exit 1
+    fi
+    uv run --no-sync python manage_workers.py d1 migrations apply DB --local
+  fi
   uv run --no-sync python manage_workers.py dev --port "${port}"
 ) >"${log_file}" 2>&1 &
 server_pid=$!
@@ -141,7 +182,11 @@ if [[ "${ready}" != true ]]; then
 fi
 
 grep -F "upload[${template}]=" "${log_file}" | tail -1
-canonicalized="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/canonicalize")"
+canonicalized="$(
+  curl --fail --silent --max-time 5 \
+    "${auth_header[@]}" \
+    "http://127.0.0.1:${port}/canonicalize"
+)"
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
   "${canonicalized}"
@@ -167,9 +212,42 @@ if [[ "${template}" == "workers" ]]; then
   exit 0
 fi
 
+if [[ "${production_mode}" == true ]]; then
+  openapi="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/openapi.json"
+  )"
+  uv run python -c \
+    'import json,sys; document=json.loads(sys.argv[1]); assert document["openapi"] == "3.1.1"; assert "/todos" in document["paths"]' \
+    "${openapi}"
+  curl --fail --silent --max-time 5 \
+    "${auth_header[@]}" \
+    "http://127.0.0.1:${port}/docs" >/dev/null
+  identity="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/whoami"
+  )"
+  uv run python -c \
+    'import json,sys; assert json.loads(sys.argv[1])["subject"] == "workerd@example.com"' \
+    "${identity}"
+  created="$(
+    curl --fail --silent --max-time 5 \
+      -X POST "http://127.0.0.1:${port}/todos" \
+      "${auth_header[@]}" \
+      -H "content-type: application/json" \
+      --data '{"title":"D1 production todo"}'
+  )"
+  uv run python -c \
+    'import json,sys; assert json.loads(sys.argv[1])["title"] == "D1 production todo"' \
+    "${created}"
+fi
+
 initialized="$(
   curl --fail --silent --max-time 10 \
     -X POST "http://127.0.0.1:${port}/mcp" \
+    "${auth_header[@]}" \
     -H "accept: application/json, text/event-stream" \
     -H "content-type: application/json" \
     --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"generated-workerd-check","version":"1.0.0"}}}'
@@ -182,13 +260,21 @@ echo "contract[mcp].initialize=${initialized}"
 called="$(
   curl --fail --silent --max-time 10 \
     -X POST "http://127.0.0.1:${port}/mcp" \
+    "${auth_header[@]}" \
     -H "accept: application/json, text/event-stream" \
     -H "content-type: application/json" \
     -H "mcp-protocol-version: 2025-11-25" \
-    -H "x-request-id: generated-workerd-1" \
-    --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"greet","arguments":{"name":"Workerd"}}}'
+    --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_todos","arguments":{}}}'
 )"
 uv run python -c \
-  'import json,sys; result=json.loads(sys.argv[1])["result"]; assert result["structuredContent"] == {"message":"Hello, Workerd!","request_id":"generated-workerd-1"}' \
+  'import json,sys; result=json.loads(sys.argv[1])["result"]["structuredContent"]; assert result["subject"]; assert isinstance(result["todos"], list)' \
   "${called}"
 echo "contract[mcp].tools_call=${called}"
+if [[ "${production_mode}" == true ]]; then
+  elapsed="$((SECONDS - started_at))"
+  if [[ "${elapsed}" -ge 600 ]]; then
+    echo "production quickstart exceeded ten minutes: ${elapsed}s" >&2
+    exit 1
+  fi
+  echo "contract[production].quickstart_seconds=${elapsed}"
+fi

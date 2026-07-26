@@ -2,6 +2,28 @@
 
 All notable changes to create-hayate are documented here.
 
+## [0.4.0] - 2026-07-26
+
+### Added
+
+- Add composable `openapi`, `mcp`, and `sql` feature generators plus explicit
+  `none` and `cloudflare-access` identity strategies.
+- Add a production preset that joins API routes, hardened Scalar docs, typed
+  client export, MCP 2025-11-25, Access identity, D1, native rate limiting,
+  CORS, security headers, and a deployment checklist.
+- Test all 40 supported runtime/feature/auth/entrypoint combinations plus both
+  production entrypoints for dependency resolution and import compatibility.
+- Exercise the golden preset over real ASGI with SQLite and real workerd with
+  D1, including an authenticated HTTP write read back through MCP.
+
+### Changed
+
+- Replace copied full application templates with one base app, one Workers
+  runtime overlay, and small feature components. The `mcp` template is now a
+  compatibility shortcut for `workers` plus the MCP component.
+- Reject unsupported combinations before writing a destination directory and
+  explain the compatible alternative.
+
 ## [0.3.0] - 2026-07-26
 
 ### Changed

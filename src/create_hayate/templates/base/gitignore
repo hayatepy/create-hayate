@@ -1,0 +1,16 @@
+.venv/
+.venv-workers/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+python_modules/
+.wrangler/
+.dev.vars
+app.db
+openapi.json
+client/api-types.ts

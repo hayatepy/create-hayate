@@ -1,0 +1,20 @@
+[project]
+name = "$project_name"
+version = "0.1.0"
+requires-python = "$requires_python"
+dependencies = $dependencies
+
+[dependency-groups]
+dev = $dev_dependencies
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = $pythonpath
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]

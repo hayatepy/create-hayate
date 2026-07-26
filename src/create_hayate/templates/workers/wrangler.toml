@@ -3,6 +3,12 @@ main = "src/entry.py"
 compatibility_date = "2026-07-01"
 compatibility_flags = [$workers_compatibility_flags]
 
+$wrangler_vars
+
+$wrangler_bindings
+
+$production_env
+
 [python_modules]
 exclude = [
   "**/*.pyc",
