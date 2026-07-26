@@ -59,13 +59,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         environment = os.environ.copy()
         environment["CREATE_HAYATE_REAL_NODE"] = real_node
         environment["CREATE_HAYATE_NODE_SHIM_PYTHON"] = sys.executable
-        environment["CREATE_HAYATE_NODE_SHIM_SCRIPT"] = str(Path(__file__).with_name("node_compat.py"))
+        environment["CREATE_HAYATE_NODE_SHIM_SCRIPT"] = str(
+            Path(__file__).with_name("node_compat.py")
+        )
         environment["PATH"] = f"{shim_dir}{os.pathsep}{environment.get('PATH', '')}"
 
         if os.name == "nt":
             (shim_dir / "node.cmd").write_text(
-                '@"%CREATE_HAYATE_NODE_SHIM_PYTHON%" '
-                '"%CREATE_HAYATE_NODE_SHIM_SCRIPT%" %*\r\n',
+                '@"%CREATE_HAYATE_NODE_SHIM_PYTHON%" "%CREATE_HAYATE_NODE_SHIM_SCRIPT%" %*\r\n',
                 encoding="utf-8",
             )
         else:

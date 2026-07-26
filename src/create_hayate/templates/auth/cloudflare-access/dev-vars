@@ -1,0 +1,2 @@
+ENVIRONMENT=local
+CORS_ORIGINS=http://localhost:3000

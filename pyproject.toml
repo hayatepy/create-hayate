@@ -4,14 +4,23 @@ build-backend = "uv_build"
 
 [project]
 name = "create-hayate"
-version = "0.3.0"
-description = "Scaffold tested Hayate API, Cloudflare Workers, and MCP 2025-11-25 projects"
+version = "0.4.0"
+description = "Compose production Hayate projects for ASGI and Cloudflare Workers"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Yusuke Hayashi" }]
-keywords = ["hayate", "scaffolding", "project-template", "cli", "mcp", "cloudflare-workers"]
+keywords = [
+  "hayate",
+  "scaffolding",
+  "project-template",
+  "cli",
+  "mcp",
+  "openapi",
+  "sql",
+  "cloudflare-workers",
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

@@ -1,15 +1,22 @@
 import importlib.util
 import io
+import itertools
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from create_hayate import cli
-from create_hayate.cli import TEMPLATES, main
+from create_hayate.cli import FEATURES, TEMPLATES, main
 
 
-def _generate(tmp_path, monkeypatch, name="demo-app", template="api", extra_args=()):
+def _generate(
+    tmp_path,
+    monkeypatch,
+    name="demo-app",
+    template="api",
+    extra_args=(),
+):
     monkeypatch.chdir(tmp_path)
     assert main([name, "--template", template, "--no-input", *extra_args]) == 0
     return tmp_path / name
@@ -18,18 +25,34 @@ def _generate(tmp_path, monkeypatch, name="demo-app", template="api", extra_args
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 def test_generates_a_complete_project(tmp_path, monkeypatch, template):
     dest = _generate(tmp_path, monkeypatch, template=template)
-    app_path = "app.py" if template == "api" else "src/app.py"
-    for expected in ("pyproject.toml", "README.md", ".gitignore", app_path, "tests/test_app.py"):
+    for expected in (
+        "pyproject.toml",
+        "README.md",
+        ".gitignore",
+        "src/app.py",
+        "src/storage.py",
+        "src/generated_features.py",
+        "tests/test_app.py",
+    ):
         assert (dest / expected).is_file(), expected
     assert 'name = "demo-app"' in (dest / "pyproject.toml").read_text(encoding="utf-8")
+    assert (dest / "wrangler.toml").is_file() is (template != "api")
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
-def test_no_placeholder_survives_generation(tmp_path, monkeypatch, template):
+def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, template):
     dest = _generate(tmp_path, monkeypatch, template=template)
+    placeholders = {
+        "$project_name",
+        "$feature_imports",
+        "$feature_registrations",
+        "$dependencies",
+        "$wrangler_bindings",
+    }
     for path in dest.rglob("*"):
         if path.is_file():
-            assert "$project_name" not in path.read_text(encoding="utf-8"), path
+            text = path.read_text(encoding="utf-8")
+            assert not placeholders.intersection(text.split()), path
 
 
 @pytest.mark.parametrize("template", ["workers", "mcp"])
@@ -51,11 +74,9 @@ def test_workers_templates_wire_wrangler(tmp_path, monkeypatch, template):
     ):
         assert f'"{excluded}"' in wrangler
     assert "uts46" not in wrangler
-    assert (dest / "src/entry.py").is_file()
     entry = (dest / "src/entry.py").read_text(encoding="utf-8")
     assert "Default = to_workers(app)" in entry
     assert "on_fetch" not in entry
-    assert (dest / "manage_workers.py").is_file()
     assert (dest / ".node-version").read_text(encoding="utf-8") == "24\n"
     assert (dest / ".nvmrc").read_text(encoding="utf-8") == "24\n"
 
@@ -94,21 +115,23 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("template", "dependency"),
+    ("template", "extra_args", "dependency"),
     [
-        ("api", '"hayate>=0.11.1,<0.12"'),
-        ("workers", '"hayate>=0.11.1,<0.12"'),
-        ("mcp", '"hayate>=0.11.1,<0.12"'),
-        ("mcp", '"hayate-mcp>=0.10,<0.11"'),
+        ("api", (), '"hayate>=0.11.1,<0.12"'),
+        ("workers", (), '"hayate>=0.11.1,<0.12"'),
+        ("mcp", (), '"hayate-mcp>=0.10,<0.11"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.3,<0.4"'),
+        ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )
-def test_templates_pin_released_compatibility_lines(
+def test_composed_projects_pin_released_compatibility_lines(
     tmp_path,
     monkeypatch,
     template,
+    extra_args,
     dependency,
 ):
-    dest = _generate(tmp_path, monkeypatch, template=template)
+    dest = _generate(tmp_path, monkeypatch, template=template, extra_args=extra_args)
     assert dependency in (dest / "pyproject.toml").read_text(encoding="utf-8")
 
 
@@ -157,11 +180,7 @@ def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
         _generate(tmp_path, monkeypatch, template="workers"),
     )
     monkeypatch.setattr(launcher, "_node_version", lambda: "v24.18.0")
-    monkeypatch.setattr(
-        launcher.shutil,
-        "which",
-        lambda name: f"/bin/{name}",
-    )
+    monkeypatch.setattr(launcher.shutil, "which", lambda name: f"/bin/{name}")
     observed = {}
 
     def run(command, **kwargs):
@@ -179,32 +198,127 @@ def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
     assert shim_dir.name.startswith("create-hayate-node-")
 
 
-def test_api_and_workers_share_the_same_app(tmp_path, monkeypatch):
+def test_api_and_workers_share_one_base_application(tmp_path, monkeypatch):
     api = _generate(tmp_path, monkeypatch, name="proj-alpha", template="api")
     workers = _generate(tmp_path, monkeypatch, name="proj-beta", template="workers")
-    read = lambda d, p: (d / p).read_text(encoding="utf-8").replace(d.name, "X")  # noqa: E731
-    assert read(api, "app.py") == read(workers, "src/app.py")
+    read = lambda directory, path: (  # noqa: E731
+        (directory / path).read_text(encoding="utf-8").replace(directory.name, "X")
+    )
+    assert read(api, "src/app.py") == read(workers, "src/app.py")
     assert read(api, "tests/test_app.py") == read(workers, "tests/test_app.py")
 
 
-def test_workers_profiles_share_the_same_launcher(tmp_path, monkeypatch):
-    workers = _generate(tmp_path, monkeypatch, name="proj-workers", template="workers")
-    mcp = _generate(tmp_path, monkeypatch, name="proj-mcp", template="mcp")
-
-    assert (workers / "manage_workers.py").read_text() == (mcp / "manage_workers.py").read_text()
-    assert (workers / "node_compat.py").read_text() == (mcp / "node_compat.py").read_text()
-
-
-def test_mcp_template_uses_published_workers_runtime(tmp_path, monkeypatch):
+def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monkeypatch):
     dest = _generate(tmp_path, monkeypatch, template="mcp")
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    app = (dest / "src/app.py").read_text(encoding="utf-8")
+    registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
 
-    assert '"hayate>=0.11.1,<0.12"' in project
     assert '"hayate-mcp>=0.10,<0.11"' in project
-    assert "WorkerMcpMount" in app
-    assert "get_request_context" in app
-    assert '"taskSupport": "forbidden"' in app
+    assert (dest / "src/feature_mcp.py").is_file()
+    assert "register_mcp(app)" in registrations
+    assert (dest / "manage_workers.py").is_file()
+
+
+def test_every_supported_feature_combination_generates_from_components(tmp_path, monkeypatch):
+    names = sorted(FEATURES)
+    combinations = [
+        combination
+        for size in range(len(names) + 1)
+        for combination in itertools.combinations(names, size)
+    ]
+    observed = 0
+    for runtime in ("api", "workers"):
+        auths = ("none",) if runtime == "api" else ("none", "cloudflare-access")
+        entrypoints = ("class",) if runtime == "api" else ("class", "global")
+        for auth, combination, entrypoint in itertools.product(
+            auths,
+            combinations,
+            entrypoints,
+        ):
+            observed += 1
+            name = f"case-{observed}"
+            args = ["--with", ",".join(combination)] if combination else []
+            if auth != "none":
+                args.extend(["--auth", auth])
+            if entrypoint == "global":
+                args.extend(["--workers-entrypoint", "global"])
+            dest = _generate(
+                tmp_path,
+                monkeypatch,
+                name=name,
+                template=runtime,
+                extra_args=tuple(args),
+            )
+            assert (dest / "src/app.py").is_file()
+            for feature in combination:
+                if feature == "sql":
+                    assert (dest / "src/queries.py").is_file()
+                else:
+                    assert (dest / f"src/feature_{feature}.py").is_file()
+            if auth == "cloudflare-access":
+                assert (dest / "src/feature_access.py").is_file()
+            entry = (dest / "src/entry.py").read_text() if runtime == "workers" else ""
+            assert ("on_fetch =" in entry) is (entrypoint == "global")
+    assert observed == 40
+
+
+def test_production_preset_composes_the_complete_golden_path(tmp_path, monkeypatch):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template="workers",
+        extra_args=("--preset", "production"),
+    )
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    wrangler = (dest / "wrangler.toml").read_text(encoding="utf-8")
+    registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
+
+    for dependency in ("hayate-openapi", "hayate-mcp", "hayate-sql"):
+        assert dependency in project
+    for component in ("access", "production", "mcp", "openapi"):
+        assert f"register_{component}(app)" in registrations
+    assert "[[d1_databases]]" in wrangler
+    assert "[[ratelimits]]" in wrangler
+    assert "[env.production.vars]" in wrangler
+    assert "[[env.production.d1_databases]]" in wrangler
+    assert 'ENVIRONMENT = "production"' in wrangler
+    assert (dest / ".dev.vars").read_text(encoding="utf-8").startswith("ENVIRONMENT=local")
+    assert ".dev.vars" in (dest / ".gitignore").read_text(encoding="utf-8")
+    assert (dest / "PRODUCTION.md").is_file()
+    assert (dest / "migrations/0001_create_todos.sql").is_file()
+    assert (dest / "scripts/export_api.sh").is_file()
+
+
+def test_production_preset_supports_the_explicit_global_http_entrypoint(
+    tmp_path,
+    monkeypatch,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template="workers",
+        extra_args=("--preset", "production", "--workers-entrypoint", "global"),
+    )
+    assert "on_fetch = to_workers_global(app)" in (dest / "src/entry.py").read_text()
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--template", "api", "--auth", "cloudflare-access"),
+        ("--template", "api", "--preset", "production"),
+        ("--template", "mcp", "--preset", "production"),
+        ("--template", "workers", "--preset", "production", "--auth", "none"),
+        ("--template", "workers", "--with", "unknown"),
+        ("--template", "workers", "--with", ","),
+    ],
+)
+def test_unsupported_combinations_fail_before_writing(tmp_path, monkeypatch, capsys, args):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["demo-app", "--no-input", *args])
+    assert not (tmp_path / "demo-app").exists()
+    assert "error:" in capsys.readouterr().err
 
 
 def test_rejects_existing_directory(tmp_path, monkeypatch):
@@ -214,7 +328,10 @@ def test_rejects_existing_directory(tmp_path, monkeypatch):
         main(["demo-app", "--template", "api", "--no-input"])
 
 
-@pytest.mark.parametrize("name", ["My-App", "app_x", "1app", "-app", "app!", ""])
+@pytest.mark.parametrize(
+    "name",
+    ["My-App", "app_x", "1app", "-app", "app!", "", "mcp", "hayate-sql"],
+)
 def test_rejects_invalid_names(tmp_path, monkeypatch, name):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit):
