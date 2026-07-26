@@ -2,6 +2,14 @@
 
 All notable changes to create-hayate are documented here.
 
+## [0.4.1] - 2026-07-26
+
+### Changed
+
+- Link generated projects and the published package description to the
+  canonical ecosystem start page, production golden app, and tested
+  compatibility evidence.
+
 ## [0.4.0] - 2026-07-26
 
 ### Added
