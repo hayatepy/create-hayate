@@ -58,7 +58,7 @@ wheels = [
 
 [[package]]
 name = "create-hayate"
-version = "0.4.3"
+version = "0.5.0"
 source = { editable = "." }
 
 [package.dev-dependencies]

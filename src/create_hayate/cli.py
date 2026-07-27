@@ -28,7 +28,7 @@ PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
 _REGISTRATION_ORDER = ("access", "production", "mcp", "openapi")
 _DEPENDENCIES = {
-    "openapi": "hayate-openapi>=0.3,<0.4",
+    "openapi": "hayate-openapi>=0.4,<0.5",
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }
@@ -266,7 +266,7 @@ or rate-limit bindings are missing.
 
 def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
-    dependencies = ["hayate>=0.11.1,<0.12"]
+    dependencies = ["hayate>=0.12,<0.13"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
     dev_dependencies = [
         "pytest>=8.3",

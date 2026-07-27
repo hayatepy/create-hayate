@@ -117,10 +117,10 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("template", "extra_args", "dependency"),
     [
-        ("api", (), '"hayate>=0.11.1,<0.12"'),
-        ("workers", (), '"hayate>=0.11.1,<0.12"'),
+        ("api", (), '"hayate>=0.12,<0.13"'),
+        ("workers", (), '"hayate>=0.12,<0.13"'),
         ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
-        ("api", ("--with", "openapi"), '"hayate-openapi>=0.3,<0.4"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.4,<0.5"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )

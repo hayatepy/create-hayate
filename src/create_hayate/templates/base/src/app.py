@@ -2,7 +2,7 @@
 
 from hayate import URL, Context, Hayate, HTTPException
 
-from contracts import describe
+from contracts import describe, validated
 from generated_features import register_features
 from identity import principal, subject
 from runtime import LOCAL_ENV
@@ -18,6 +18,18 @@ TODO_SCHEMA = {
         "done": {"type": "boolean"},
     },
     "required": ["id", "title", "done"],
+    "additionalProperties": False,
+}
+TODO_CREATE_SCHEMA = {
+    "type": "object",
+    "properties": {"title": {"type": "string", "minLength": 1, "maxLength": 200}},
+    "required": ["title"],
+    "additionalProperties": False,
+}
+TODO_ID_SCHEMA = {
+    "type": "object",
+    "properties": {"id": {"type": "string", "format": "uuid"}},
+    "required": ["id"],
     "additionalProperties": False,
 }
 
@@ -50,7 +62,7 @@ async def todos_index(c: Context):
     return c.json(await list_todos(c, subject(c)))
 
 
-@app.post("/todos")
+@app.post("/todos", validated("json", TODO_CREATE_SCHEMA))
 @describe(
     summary="Create a todo",
     status=201,
@@ -59,7 +71,7 @@ async def todos_index(c: Context):
     operation_id="createTodo",
 )
 async def todos_create(c: Context):
-    data = await c.req.json()
+    data = c.req.valid("json")
     title = data.get("title") if isinstance(data, dict) else None
     if not isinstance(title, str) or not title.strip() or len(title) > 200:
         raise HTTPException(400, title="title must be a non-empty string up to 200 characters")
@@ -67,7 +79,7 @@ async def todos_create(c: Context):
     return c.json(todo, status=201)
 
 
-@app.get("/todos/:id")
+@app.get("/todos/:id", validated("param", TODO_ID_SCHEMA))
 @describe(
     summary="Get a todo",
     response=TODO_SCHEMA,
@@ -75,16 +87,16 @@ async def todos_create(c: Context):
     operation_id="getTodo",
 )
 async def todos_show(c: Context):
-    todo = await get_todo(c, subject(c), c.req.param("id"))
+    todo = await get_todo(c, subject(c), c.req.valid("param")["id"])
     if todo is None:
         raise HTTPException(404, title="Todo not found")
     return c.json(todo)
 
 
-@app.delete("/todos/:id")
+@app.delete("/todos/:id", validated("param", TODO_ID_SCHEMA))
 @describe(summary="Delete a todo", status=204, responses={404: None}, operation_id="deleteTodo")
 async def todos_delete(c: Context):
-    if not await delete_todo(c, subject(c), c.req.param("id")):
+    if not await delete_todo(c, subject(c), c.req.valid("param")["id"]):
         raise HTTPException(404, title="Todo not found")
     return c.body(None, status=204)
 

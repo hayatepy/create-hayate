@@ -1,5 +1,5 @@
 """OpenAPI route annotations."""
 
-from hayate_openapi import describe
+from hayate_openapi import describe, validated
 
-__all__ = ["describe"]
+__all__ = ["describe", "validated"]

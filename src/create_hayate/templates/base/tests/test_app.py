@@ -44,3 +44,15 @@ async def test_todo_crud_is_scoped_to_the_request_identity():
 
     missing = await app.request(f"/todos/{todo['id']}", headers=AUTH_HEADERS)
     assert missing.status == 404
+
+
+@pytest.mark.asyncio
+async def test_malformed_json_is_a_validation_problem():
+    response = await app.request(
+        "/todos",
+        method="POST",
+        headers={**AUTH_HEADERS, "content-type": "application/json"},
+        body="not json",
+    )
+    assert response.status == 400
+    assert (await response.json())["title"] == "Validation failed"
