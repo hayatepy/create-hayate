@@ -4,6 +4,14 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.7.3] - 2026-07-27
+
+### Changed
+
+- Install the published `hayate-htmx>=0.1,<0.2` release for ASGI htmx
+  profiles instead of a VCS dependency, while preserving the reviewed source
+  snapshot across the Pywrangler/Pyodide Workers boundary.
+
 ## [0.7.2] - 2026-07-27
 
 ### Changed
