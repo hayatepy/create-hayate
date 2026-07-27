@@ -34,6 +34,13 @@ $admin_production_checklist
 - Keep the 1 MiB body limit or document and test a deliberate replacement.
 - Review Cloudflare Access, rate-limit, D1, and Worker observability retention.
   Never record SQL text, bound values, Access JWTs, or personal data.
+- Confirm access events contain `event`, `method`, `path`, `status`,
+  `duration_ms`, and `request_id`, and that the configured sink parses each
+  event as one JSON object. Query strings, headers, and bodies must remain
+  absent.
+- Define retention and incident-response access for request logs. Treat
+  request IDs as correlation metadata, not authentication or authorization
+  credentials.
 
 ## Build and deploy
 

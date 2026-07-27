@@ -1,6 +1,10 @@
+import json
+
 import pytest
+from hayate.middleware import current_request_id
 
 from app import app
+from feature_observability import request_log
 from tests.helpers import AUTH_HEADERS
 
 
@@ -69,3 +73,35 @@ async def test_malformed_json_is_a_validation_problem():
     )
     assert response.status == 400
     assert (await response.json())["title"] == "Validation failed"
+
+
+@pytest.mark.asyncio
+async def test_request_logs_are_correlated_structured_and_query_free(
+    caplog: pytest.LogCaptureFixture,
+):
+    request_log.addHandler(caplog.handler)
+    try:
+        response = await app.request(
+            "$api_prefix/health?access_token=must-not-be-logged",
+            headers={"x-request-id": "generated:request-42"},
+        )
+    finally:
+        request_log.removeHandler(caplog.handler)
+
+    assert response.status == 200
+    assert response.headers.get("x-request-id") == "generated:request-42"
+    record = next(record for record in caplog.records if record.name == request_log.name)
+    event = json.loads(record.getMessage())
+    duration_ms = event.pop("duration_ms")
+    assert event == {
+        "event": "http_request",
+        "method": "GET",
+        "path": "$api_prefix/health",
+        "status": 200,
+        "request_id": "generated:request-42",
+    }
+    assert isinstance(duration_ms, float)
+    assert duration_ms >= 0
+    assert record.__dict__["request_id"] == "generated:request-42"
+    assert "must-not-be-logged" not in record.getMessage()
+    assert current_request_id() is None

@@ -33,6 +33,7 @@ def test_generates_a_complete_project(tmp_path, monkeypatch, template):
         "src/storage.py",
         "src/todo_api.py",
         "src/todo_domain.py",
+        "src/feature_observability.py",
         "src/generated_features.py",
         "tests/test_app.py",
     ):
@@ -124,8 +125,8 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("template", "extra_args", "dependency"),
     [
-        ("api", (), '"hayate>=0.13,<0.14"'),
-        ("workers", (), '"hayate>=0.13,<0.14"'),
+        ("api", (), '"hayate>=0.15.1,<0.16"'),
+        ("workers", (), '"hayate>=0.15.1,<0.16"'),
         ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
         ("api", ("--with", "openapi"), '"hayate-openapi>=0.7,<0.8"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
@@ -240,6 +241,22 @@ def test_api_and_workers_share_one_base_application(tmp_path, monkeypatch):
     assert read(api, "tests/test_app.py") == read(workers, "tests/test_app.py")
 
 
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_observability_is_the_outermost_generated_boundary(tmp_path, monkeypatch, template):
+    dest = _generate(tmp_path, monkeypatch, template=template)
+    registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
+
+    assert "from feature_observability import register as register_observability" in registrations
+    calls = [
+        line.strip() for line in registrations.splitlines() if line.strip().startswith("register_")
+    ]
+    assert calls[0] == "register_observability(app)"
+    observability = (dest / "src/feature_observability.py").read_text(encoding="utf-8")
+    assert "request_id()" in observability
+    assert "structured=True" in observability
+    assert "propagate = False" in observability
+
+
 def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monkeypatch):
     dest = _generate(tmp_path, monkeypatch, template="mcp")
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
@@ -282,6 +299,7 @@ def test_every_supported_feature_combination_generates_from_components(tmp_path,
                 extra_args=tuple(args),
             )
             assert (dest / "src/app.py").is_file()
+            assert (dest / "src/feature_observability.py").is_file()
             for feature in combination:
                 if feature == "sql":
                     assert (dest / "src/queries.py").is_file()
@@ -419,7 +437,7 @@ def test_production_preset_composes_the_complete_golden_path(tmp_path, monkeypat
 
     for dependency in ("hayate-openapi", "hayate-mcp", "hayate-sql"):
         assert dependency in project
-    for component in ("access", "production", "mcp", "openapi"):
+    for component in ("observability", "access", "production", "mcp", "openapi"):
         assert f"register_{component}(app)" in registrations
     assert "[[d1_databases]]" in wrangler
     assert "[[ratelimits]]" in wrangler

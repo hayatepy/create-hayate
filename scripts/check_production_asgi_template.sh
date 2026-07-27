@@ -42,6 +42,21 @@ if [[ "${ready}" != true ]]; then
 fi
 
 auth_header="cf-access-authenticated-user-email: asgi@example.com"
+identity="$(
+  curl --fail --silent --max-time 10 \
+    -H "${auth_header}" \
+    -H "x-request-id: generated-asgi-smoke" \
+    "http://127.0.0.1:${port}/whoami?access_token=must-not-be-logged"
+)"
+uv run python -c \
+  'import json,sys; assert json.loads(sys.argv[1])["subject"] == "asgi@example.com"' \
+  "${identity}"
+request_log_line="$(grep -F '"request_id":"generated-asgi-smoke"' "${log_file}" | tail -1)"
+if [[ -z "${request_log_line}" || "${request_log_line}" == *"must-not-be-logged"* ]]; then
+  echo "generated ASGI request log is missing correlation or exposed the query string" >&2
+  exit 1
+fi
+
 created="$(
   curl --fail --silent --max-time 10 \
     -X POST "http://127.0.0.1:${port}/todos" \
