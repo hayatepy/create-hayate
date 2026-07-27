@@ -50,6 +50,13 @@ _DEPENDENCIES = {
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }
+_MCP_CPYTHON_RPDS = "rpds-py>=0.26; sys_platform != 'emscripten'"
+_MCP_CPYTHON_MARKER = "sys_platform != 'emscripten'"
+_MCP_UV_ENVIRONMENTS = """[tool.uv]
+environments = [
+  "sys_platform == 'emscripten'",
+  "sys_platform != 'emscripten'",
+]"""
 _HTMX_COMMIT = "255de5bf3fc3f3f7665572940ffb5bfcef06d6b2"
 _FRONTEND_DEPENDENCIES = {
     "none": (),
@@ -428,7 +435,10 @@ without changing `src/app.py`.
 ## MCP
 
 The MCP 2025-11-25 endpoint is `/mcp`. Its `list_todos` tool reads the same
-identity context and SQL-backed storage as the HTTP API.
+identity context and SQL-backed storage as the HTTP API. The generated uv
+configuration keeps Emscripten's reviewed `rpds-py` wheel separate from the
+native CPython resolution so the same universal lock installs on Workers and
+Python 3.14.
 """
     openapi_section = ""
     if openapi and plan.frontend in {"react", "astro"}:
@@ -629,6 +639,11 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
     dependencies = ["hayate>=0.15.1,<0.16"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
+    if "mcp" in plan.features:
+        # hayate-mcp pins the Pyodide ABI-compatible rpds build only on
+        # Emscripten. Tell uv to retain that platform fork instead of selecting
+        # the older version for CPython to minimize a universal lock.
+        dependencies.append(_MCP_CPYTHON_RPDS)
     if plan.frontend == "htmx" and plan.runtime == "workers":
         dependencies.append("jinja2==3.1.6")
     else:
@@ -648,6 +663,14 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
         )
     if plan.frontend == "htmx" or "admin" in plan.features:
         dev_dependencies.append("playwright>=1.54,<2")
+    if "mcp" in plan.features:
+        # Universal MCP locks include the Emscripten runtime, but local test,
+        # lint, server, and Workers tooling only execute on the host CPython.
+        # Excluding them from Emscripten also prevents native-only tools such
+        # as Playwright from making that runtime resolution unsatisfiable.
+        dev_dependencies = [
+            f"{requirement}; {_MCP_CPYTHON_MARKER}" for requirement in dev_dependencies
+        ]
 
     feature_imports, feature_registrations = _feature_registration(plan)
     bindings: list[str] = []
@@ -718,6 +741,7 @@ simple = {{ limit = 60, period = 60 }}
         "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),
+        "uv_environments": _MCP_UV_ENVIRONMENTS if "mcp" in plan.features else "",
         "pythonpath": '["src"]',
         "feature_imports": feature_imports,
         "feature_registrations": feature_registrations,

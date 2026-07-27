@@ -4,6 +4,14 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Preserve separate Emscripten and CPython `rpds-py` resolutions in generated
+  MCP universal locks so macOS can install Python 3.14 wheels instead of
+  attempting the Pyodide-pinned 0.23.1 source build.
+- Keep host-only development tools out of the Emscripten side of MCP locks so
+  native packages such as Playwright cannot make Workers resolution fail.
+
 ## [0.11.0] - 2026-07-28
 
 ### Added

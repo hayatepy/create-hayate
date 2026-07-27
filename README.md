@@ -54,6 +54,11 @@ uvx create-hayate my-app \
 | `sql` | Migration-checked `hayate-sql`; SQLite on ASGI and D1 on Workers |
 | `--auth cloudflare-access` | Local explicit identity; production RS256/JWKS verification |
 
+MCP projects keep Emscripten and CPython dependency resolutions separate in
+their uv universal lock. This preserves Pyodide's reviewed `rpds-py` build on
+Workers while installing a native Python 3.14 wheel on macOS and other
+CPython platforms.
+
 `admin` implies `sql` and Cloudflare Access and is currently limited to the
 Workers template with `--frontend none`; that template still runs unchanged
 through ASGI for local and fallback verification. The generator creates no
