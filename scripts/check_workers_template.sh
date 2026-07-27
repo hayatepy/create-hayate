@@ -323,8 +323,16 @@ canonicalized="$(
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
   "${canonicalized}"
-request_log_line="$(grep -F '"request_id":"generated-workerd-smoke"' "${log_file}" | tail -1)"
+request_log_line=""
+for _ in {1..20}; do
+  request_log_line="$(grep -F '"request_id":"generated-workerd-smoke"' "${log_file}" | tail -1)"
+  if [[ -n "${request_log_line}" ]]; then
+    break
+  fi
+  sleep 0.25
+done
 if [[ -z "${request_log_line}" || "${request_log_line}" == *"must-not-be-logged"* ]]; then
+  tail -n 250 "${log_file}" >&2
   echo "generated workerd request log is missing correlation or exposed the query string" >&2
   exit 1
 fi
