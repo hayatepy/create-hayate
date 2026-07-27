@@ -316,9 +316,27 @@ if [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == tr
   canonicalize_prefix="/api"
 fi
 canonicalize_path="${canonicalize_prefix}/canonicalize"
-curl --fail --silent --show-error --max-time 5 \
-  "${auth_header[@]}" \
-  "http://127.0.0.1:${port}${canonicalize_path}" >/dev/null
+warmup_file="${test_dir}/canonicalize-warmup.json"
+warmup_status=""
+for _ in {1..20}; do
+  warmup_status="$(
+    curl --silent --show-error --max-time 5 \
+      --output "${warmup_file}" \
+      --write-out "%{http_code}" \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}${canonicalize_path}"
+  )"
+  if [[ "${warmup_status}" == "200" ]]; then
+    break
+  fi
+  sleep 0.25
+done
+if [[ "${warmup_status}" != "200" ]]; then
+  tail -n 250 "${log_file}" >&2
+  cat "${warmup_file}" >&2
+  echo "generated workerd warm-up returned ${warmup_status}" >&2
+  exit 1
+fi
 
 canonicalized_file="${test_dir}/canonicalized.json"
 canonicalized_status="$(
