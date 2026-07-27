@@ -18,6 +18,7 @@ import queries
 from hayate_admin import (
     Actor,
     AdminAction,
+    AdminBranding,
     AdminCsvExport,
     AdminCursorError,
     AdminField,
@@ -25,6 +26,7 @@ from hayate_admin import (
     AdminResource,
     AdminSavedView,
     AdminSite,
+    AdminTheme,
     AdminValidationError,
     AuditEvent,
     AuditHistoryPage,
@@ -368,6 +370,10 @@ def register(app: Hayate) -> None:
         authorize=_authorize,
         audit_factory=_audit_factory,
         history_factory=_history_factory,
+        branding=AdminBranding(
+            wordmark="$project_name Operations",
+            theme=AdminTheme(accent="#005EA8"),
+        ),
     )
     site.add(
         AdminResource(

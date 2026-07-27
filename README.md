@@ -46,7 +46,7 @@ uvx create-hayate my-app \
 
 | Feature | Generated boundary |
 |---|---|
-| `admin` | Explicit identity-scoped TODO operations UI, checked-SQL paging/search/sort, and persistent redacted audit history |
+| `admin` | Explicit identity-scoped TODO operations UI with checked SQL, redacted audit history, safe branding, and accessible localized controls |
 | `openapi` | Typed UUID/response contracts, OpenAPI 3.1.1, hardened Scalar, pinned TypeScript export |
 | `mcp` | MCP 2025-11-25 tools sharing request identity and storage |
 | `sql` | Migration-checked `hayate-sql`; SQLite on ASGI and D1 on Workers |
@@ -145,9 +145,12 @@ uvx create-hayate my-app \
 ```
 
 The admin profile copies unmodified MIT-licensed snapshots of reviewed,
-released commits into the generated source tree. This preserves offline,
+exact commits into the generated source tree. This preserves offline,
 zero-network generation and avoids floating branches and Pywrangler's
 VCS-lock limitation; exact commits and licenses are recorded under `admin/`.
+The generated site uses escaped plain-text branding, contrast-checked theme
+tokens, hashed-CSP styling, keyboard/assistive-technology semantics, and the
+upstream application-scoped message-catalog contract.
 
 Local CI drives the generated preset over both real ASGI HTTP and real workerd.
 The workerd path applies a real D1 migration, writes through the HTTP API, and
@@ -176,7 +179,7 @@ reads the same authenticated data through MCP.
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.9.x).** Generated projects pin released compatibility
+> **Status: alpha (0.10.x).** Generated projects pin released compatibility
 > lines. Public APIs may still move before 1.0.
 
 ## License

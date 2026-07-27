@@ -325,6 +325,27 @@ uv run python -c \
 echo "contract[${template}].canonicalize=${canonicalized}"
 
 if [[ "${admin_mode}" == true ]]; then
+  admin_home_headers="${test_dir}/admin-home.headers"
+  admin_home="$(
+    curl --fail --silent --max-time 5 \
+      --dump-header "${admin_home_headers}" \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/admin"
+  )"
+  if [[ "${admin_home}" != *"demo-app Operations"* \
+    || "${admin_home}" != *'class="skip-link"'* \
+    || "${admin_home}" != *"@media(prefers-reduced-motion:reduce)"* ]]; then
+    echo "admin home did not expose the reviewed branding and accessibility contract" >&2
+    exit 1
+  fi
+  if ! grep -qiF "style-src 'sha256-" "${admin_home_headers}"; then
+    echo "admin home did not use a hashed style CSP" >&2
+    exit 1
+  fi
+  if grep -qiF "'unsafe-inline'" "${admin_home_headers}"; then
+    echo "admin home CSP allowed unsafe inline content" >&2
+    exit 1
+  fi
   denied_status="$(
     curl --silent --show-error --output /dev/null --write-out "%{http_code}" --max-time 5 \
       -H "cf-access-authenticated-user-email: viewer@example.com" \
@@ -345,6 +366,22 @@ if [[ "${admin_mode}" == true ]]; then
     --data "title=generated+admin+worker"
   if ! grep -qiE "^location: /admin/todos/object/" "${created_headers}"; then
     echo "admin create did not return an object redirect" >&2
+    exit 1
+  fi
+  created_location="$(
+    grep -iE "^location: /admin/todos/object/" "${created_headers}" \
+      | head -1 \
+      | cut -d" " -f2- \
+      | tr -d "\r"
+  )"
+  admin_history="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}${created_location}/history"
+  )"
+  if [[ "${admin_history}" != *"Add record"* \
+    || "${admin_history}" == *"generated admin worker"* ]]; then
+    echo "admin history did not expose the localized, redacted audit contract" >&2
     exit 1
   fi
   admin_list="$(
@@ -369,7 +406,7 @@ if [[ "${admin_mode}" == true ]]; then
     echo "admin list did not apply the static saved view" >&2
     exit 1
   fi
-  echo "contract[${template}].admin=authorized,origin-checked,audited,saved-view,cursor,csv"
+  echo "contract[${template}].admin=authorized,origin-checked,audited,localized,branded,a11y,csp,saved-view,cursor,csv"
   if [[ "${production_mode}" != true ]]; then
     exit 0
   fi

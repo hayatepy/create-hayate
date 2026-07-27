@@ -13,6 +13,8 @@ from typing import Literal, Protocol, cast
 
 from hayate import Context
 
+from .messages import ENGLISH_MESSAGES, AdminMessages
+
 type AdminAction = Literal[
     "site:view",
     "resource:view",
@@ -167,7 +169,12 @@ class AdminField:
         if self.validator is not None and not callable(self.validator):
             raise ValueError(f"{self.name}: validator must be callable")
 
-    def parse(self, raw: str | None) -> tuple[object | None, str | None]:
+    def parse(
+        self,
+        raw: str | None,
+        *,
+        messages: AdminMessages = ENGLISH_MESSAGES,
+    ) -> tuple[object | None, str | None]:
         """Convert one bounded HTML form value without executing application code."""
         if self.read_only:
             return None, None
@@ -176,10 +183,13 @@ class AdminField:
         else:
             value_text = "" if raw is None else raw
             if len(value_text) > self.max_length:
-                return None, f"Must be at most {self.max_length} characters."
+                return None, messages.text(
+                    "validation.max_length",
+                    max_length=self.max_length,
+                )
             if not value_text:
                 if self.required:
-                    return None, "This field is required."
+                    return None, messages.text("validation.required")
                 return None, None
             try:
                 if self.kind == "integer":
@@ -197,20 +207,20 @@ class AdminField:
                 else:
                     value = value_text
             except ValueError:
-                expected = {
-                    "integer": "an integer",
-                    "number": "a finite number",
-                    "date": "a valid date",
-                    "datetime-local": "a valid date and time",
-                }.get(self.kind, "a valid value")
-                return None, f"Enter {expected}."
+                key = {
+                    "integer": "validation.integer",
+                    "number": "validation.number",
+                    "date": "validation.date",
+                    "datetime-local": "validation.datetime",
+                }.get(self.kind, "validation.value")
+                return None, messages.text(key)
             if self.kind == "email" and (
                 value_text.count("@") != 1 or value_text.startswith("@") or value_text.endswith("@")
             ):
-                return None, "Enter a valid email address."
+                return None, messages.text("validation.email")
 
         if self.choices and str(value) not in {choice for choice, _ in self.choices}:
-            return None, "Select a valid choice."
+            return None, messages.text("validation.choice")
         if self.validator is not None:
             message = self.validator(value)
             if message is not None:

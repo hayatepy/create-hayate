@@ -316,6 +316,8 @@ def test_admin_feature_generates_a_fail_closed_sql_and_access_profile(
         "admin/hayate-htmx-LICENSE",
         "migrations/0002_create_admin_audit_events.sql",
         "src/feature_admin.py",
+        "src/hayate_admin/branding.py",
+        "src/hayate_admin/messages.py",
         "src/hayate_admin/site.py",
         "src/hayate_htmx/request.py",
         "tests/test_admin.py",
@@ -337,7 +339,10 @@ def test_admin_feature_generates_a_fail_closed_sql_and_access_profile(
     )
     admin_profile = (dest / "admin/profile.toml").read_text(encoding="utf-8")
     assert 'hayate_admin_version = "0.2.0"' in admin_profile
-    assert "2fdc1c6349308157f1cbea0ac1aff11a42c0d023" in admin_profile
+    assert "aedd4c47cbbe7c7d26cdf39b6c65fa201996369d" in admin_profile
+    admin_feature = (dest / "src/feature_admin.py").read_text(encoding="utf-8")
+    assert "AdminBranding(" in admin_feature
+    assert 'accent="#005EA8"' in admin_feature
 
 
 def test_admin_source_snapshot_is_copied_verbatim(tmp_path, monkeypatch):

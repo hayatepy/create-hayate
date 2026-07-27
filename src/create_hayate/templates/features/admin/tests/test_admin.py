@@ -24,7 +24,13 @@ async def test_admin_requires_access_and_the_operator_allowlist():
 
     accepted = await app.request("/admin", headers=OPERATOR)
     assert accepted.status == 200
-    assert "$project_name Operations" in await accepted.text()
+    accepted_html = await accepted.text()
+    assert "$project_name Operations" in accepted_html
+    assert "Skip to main content" in accepted_html
+    assert "@media(prefers-reduced-motion:reduce)" in accepted_html
+    policy = accepted.headers.get("content-security-policy") or ""
+    assert "style-src 'sha256-" in policy
+    assert "'unsafe-inline'" not in policy
 
 
 @pytest.mark.asyncio
@@ -80,8 +86,8 @@ async def test_admin_crud_is_owner_scoped_origin_checked_and_audited():
     )
     history_html = await history.text()
     assert history.status == 200
-    assert "resource:add" in history_html
-    assert "resource:change" in history_html
+    assert "Add record" in history_html
+    assert "Change record" in history_html
     assert "shipped" not in history_html
 
     deleted = await app.request(

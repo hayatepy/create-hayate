@@ -1,6 +1,6 @@
 schema = 1
 hayate_admin_version = "0.2.0"
-hayate_admin_commit = "2fdc1c6349308157f1cbea0ac1aff11a42c0d023"
+hayate_admin_commit = "aedd4c47cbbe7c7d26cdf39b6c65fa201996369d"
 hayate_htmx_version = "0.2.0"
 hayate_htmx_commit = "c133900998c487a44d40a103c52f2d469047deda"
 vendored_paths = ["src/hayate_admin", "src/hayate_htmx"]

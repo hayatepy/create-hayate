@@ -4,6 +4,23 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.10.0] - 2026-07-28
+
+### Added
+
+- Generate escaped plain-text admin branding with contrast-checked theme
+  tokens, hashed-CSP styling, semantic landmarks, visible focus, reduced-motion
+  handling, and application-scoped localization support.
+
+### Changed
+
+- Refresh the unmodified vendored `hayate-admin` snapshot to reviewed main
+  commit `aedd4c4`, whose Python, SQLite, Chromium/axe, native D1, package,
+  dependency, workflow, and CodeQL gates passed.
+- Extend direct and native generated-project evidence to cover the safe theme
+  and localized history output without adding ambient locale state, remote CSS,
+  raw HTML, or `unsafe-inline`.
+
 ## [0.9.0] - 2026-07-28
 
 ### Added
