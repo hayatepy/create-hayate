@@ -25,6 +25,7 @@ from hayate import (
 )
 from hayate_htmx import HtmxRequest, with_htmx
 
+from .branding import AdminBranding
 from .contracts import (
     Actor,
     AdminAction,
@@ -58,6 +59,7 @@ from .contracts import (
     RelationshipPage,
     RelationshipQuery,
 )
+from .messages import ENGLISH_MESSAGES, AdminMessages
 from .render import AdminRenderer
 
 _FORM_BODY_LIMIT = 64 * 1024
@@ -193,6 +195,7 @@ class AdminSite:
         "_authorize",
         "_history",
         "_history_factory",
+        "_messages",
         "_registered",
         "_renderer",
         "_resources",
@@ -213,6 +216,8 @@ class AdminSite:
         history_factory: AuditHistoryReaderFactory | None = None,
         prefix: str = "/admin",
         htmx_asset: AdminAsset | None = None,
+        messages: AdminMessages = ENGLISH_MESSAGES,
+        branding: AdminBranding | None = None,
     ) -> None:
         if not isinstance(title, str) or not title or len(title) > 120:
             raise ValueError("admin title must be 1-120 characters")
@@ -234,6 +239,10 @@ class AdminSite:
             raise ValueError("admin history_factory must be callable")
         if htmx_asset is not None and not isinstance(htmx_asset, AdminAsset):
             raise ValueError("admin htmx_asset must be an AdminAsset")
+        if not isinstance(messages, AdminMessages):
+            raise ValueError("admin messages must be an AdminMessages")
+        if branding is not None and not isinstance(branding, AdminBranding):
+            raise ValueError("admin branding must be an AdminBranding")
         self.title = title
         self.prefix = _normalize_prefix(prefix)
         self._trusted_origins = frozenset(_normalize_origin(origin) for origin in allowed_origins)
@@ -242,9 +251,16 @@ class AdminSite:
         self._audit_factory = audit_factory
         self._history = history
         self._history_factory = history_factory
+        self._messages = messages
         self._resources: dict[str, AdminResource] = {}
         self._registered = False
-        self._renderer = AdminRenderer(prefix=self.prefix, title=title, asset=htmx_asset)
+        self._renderer = AdminRenderer(
+            prefix=self.prefix,
+            title=title,
+            asset=htmx_asset,
+            messages=messages,
+            branding=branding or AdminBranding(),
+        )
 
     @property
     def resources(self) -> tuple[AdminResource, ...]:
@@ -406,13 +422,11 @@ class AdminSite:
     ) -> Actor | None:
         return await self._authorize(context, action, resource, object_id)
 
-    @staticmethod
-    def _forbidden() -> Response:
-        return problem(403, title="Admin operation forbidden")
+    def _forbidden(self) -> Response:
+        return problem(403, title=self._messages.text("problem.forbidden"))
 
-    @staticmethod
-    def _not_found() -> Response:
-        return problem(404, title="Admin record not found")
+    def _not_found(self) -> Response:
+        return problem(404, title=self._messages.text("problem.not_found"))
 
     async def _index(self, context: Context) -> Response:
         actor = await self._allowed(context, "site:view", None)
@@ -440,11 +454,15 @@ class AdminSite:
         try:
             query = self._list_query(context, resource)
         except ValueError as error:
-            return problem(400, title="Invalid admin list query", detail=str(error))
+            return problem(
+                400,
+                title=self._messages.text("problem.list_query"),
+                detail=str(error),
+            )
         try:
             repository_page = await resource.repository_for(context).list(query)
         except AdminCursorError:
-            return problem(400, title="Admin cursor is unsupported")
+            return problem(400, title=self._messages.text("problem.cursor"))
         self._validate_page(resource, query, repository_page)
         visible_records = []
         for record in repository_page.items:
@@ -673,9 +691,9 @@ class AdminSite:
         try:
             page_number = int(raw_page)
         except ValueError:
-            return problem(400, title="Invalid admin history page")
+            return problem(400, title=self._messages.text("problem.history_page"))
         if not 1 <= page_number <= 1_000_000:
-            return problem(400, title="Invalid admin history page")
+            return problem(400, title=self._messages.text("problem.history_page"))
         limit = 50
         reader = self._history
         if reader is None:
@@ -702,7 +720,7 @@ class AdminSite:
         )
         return self._renderer.response(
             context,
-            title=f"{resource.singular_label} history",
+            title=self._messages.text("history.heading", object_id=object_id),
             actor=actor,
             content=content,
         )
@@ -720,7 +738,7 @@ class AdminSite:
             or len(source_object_id) > 255
             or any(ord(character) < 0x20 for character in source_object_id)
         ):
-            return problem(400, title="Invalid relationship source object")
+            return problem(400, title=self._messages.text("problem.relationship_source"))
         source_action: AdminAction = (
             "resource:add" if source_object_id is None else "resource:change"
         )
@@ -737,14 +755,14 @@ class AdminSite:
         if search is not None:
             search = search.strip() or None
         if search is not None and len(search) > 200:
-            return problem(400, title="Invalid relationship search")
+            return problem(400, title=self._messages.text("problem.relationship_search"))
         raw_page = context.req.query("page") or "1"
         try:
             page_number = int(raw_page)
         except ValueError:
-            return problem(400, title="Invalid relationship page")
+            return problem(400, title=self._messages.text("problem.relationship_page"))
         if not 1 <= page_number <= 1_000_000:
-            return problem(400, title="Invalid relationship page")
+            return problem(400, title=self._messages.text("problem.relationship_page"))
         query = RelationshipQuery(
             search=search,
             offset=(page_number - 1) * relationship.max_choices,
@@ -769,7 +787,10 @@ class AdminSite:
         )
         return self._renderer.response(
             context,
-            title=f"Choose {resource.field_map[relationship.field].label}",
+            title=self._messages.text(
+                "relationship.heading",
+                field=resource.field_map[relationship.field].label,
+            ),
             actor=actor,
             content=content,
         )
@@ -892,19 +913,23 @@ class AdminSite:
         if relationship_state is None:
             return self._forbidden()
         values, relationship_choices = relationship_state
+        heading = self._messages.text(
+            "form.create_heading",
+            item=resource.singular_label,
+        )
         content = self._renderer.form(
             resource,
             action=f"{self.prefix}/{resource.slug}/create",
-            heading=f"Add {resource.singular_label}",
+            heading=heading,
             values=values,
             errors={},
-            submit_label="Create",
+            submit_label=self._messages.text("form.create"),
             relationship_choices=relationship_choices,
             source_object_id=None,
         )
         return self._renderer.response(
             context,
-            title=f"Add {resource.singular_label}",
+            title=heading,
             actor=actor,
             content=content,
         )
@@ -948,10 +973,13 @@ class AdminSite:
                 resource,
                 actor=actor,
                 action=f"{self.prefix}/{resource.slug}/create",
-                heading=f"Add {resource.singular_label}",
+                heading=self._messages.text(
+                    "form.create_heading",
+                    item=resource.singular_label,
+                ),
                 values=display_values,
                 errors=errors,
-                submit_label="Create",
+                submit_label=self._messages.text("form.create"),
                 source_object_id=None,
             )
         try:
@@ -970,10 +998,13 @@ class AdminSite:
                 resource,
                 actor=actor,
                 action=f"{self.prefix}/{resource.slug}/create",
-                heading=f"Add {resource.singular_label}",
+                heading=self._messages.text(
+                    "form.create_heading",
+                    item=resource.singular_label,
+                ),
                 values=display_values,
                 errors=self._safe_errors(resource, error.errors),
-                submit_label="Create",
+                submit_label=self._messages.text("form.create"),
                 source_object_id=None,
             )
         except Exception as error:
@@ -1151,7 +1182,11 @@ class AdminSite:
                 "InvalidExportQuery",
                 operation="csv",
             )
-            return problem(400, title="Invalid admin export query", detail=str(error))
+            return problem(
+                400,
+                title=self._messages.text("problem.export_query"),
+                detail=str(error),
+            )
         query = ExportQuery(
             search=list_query.search,
             filters=list_query.filters,
@@ -1194,8 +1229,11 @@ class AdminSite:
                 )
                 return problem(
                     413,
-                    title="Admin CSV export exceeds its row limit",
-                    detail=f"Refine the list query below {policy.max_rows} records.",
+                    title=self._messages.text("problem.export_rows"),
+                    detail=self._messages.text(
+                        "problem.export_rows_detail",
+                        limit=policy.max_rows,
+                    ),
                 )
             authorized_records = []
             for record in records:
@@ -1234,8 +1272,11 @@ class AdminSite:
             )
             return problem(
                 413,
-                title="Admin CSV export exceeds its byte limit",
-                detail=f"Refine the list query below {policy.max_bytes} bytes.",
+                title=self._messages.text("problem.export_bytes"),
+                detail=self._messages.text(
+                    "problem.export_bytes_detail",
+                    limit=policy.max_bytes,
+                ),
             )
         except Exception as error:
             await self._failure(
@@ -1321,19 +1362,23 @@ class AdminSite:
             return self._forbidden()
         values, relationship_choices = relationship_state
         action = f"{self._record_location(resource, object_id)}/edit"
+        heading = self._messages.text(
+            "form.edit_heading",
+            record=record.get(resource.title_field, object_id),
+        )
         content = self._renderer.form(
             resource,
             action=action,
-            heading=f"Edit {record.get(resource.title_field, object_id)}",
+            heading=heading,
             values=values,
             errors={},
-            submit_label="Save changes",
+            submit_label=self._messages.text("form.save"),
             relationship_choices=relationship_choices,
             source_object_id=object_id,
         )
         return self._renderer.response(
             context,
-            title=f"Edit {record.get(resource.title_field, object_id)}",
+            title=heading,
             actor=actor,
             content=content,
         )
@@ -1386,10 +1431,10 @@ class AdminSite:
                 resource,
                 actor=actor,
                 action=action,
-                heading=f"Edit {object_id}",
+                heading=self._messages.text("form.edit_heading", record=object_id),
                 values=display_values,
                 errors=errors,
-                submit_label="Save changes",
+                submit_label=self._messages.text("form.save"),
                 source_object_id=object_id,
             )
         try:
@@ -1408,10 +1453,10 @@ class AdminSite:
                 resource,
                 actor=actor,
                 action=action,
-                heading=f"Edit {object_id}",
+                heading=self._messages.text("form.edit_heading", record=object_id),
                 values=display_values,
                 errors=self._safe_errors(resource, error.errors),
-                submit_label="Save changes",
+                submit_label=self._messages.text("form.save"),
                 source_object_id=object_id,
             )
         except Exception as error:
@@ -1745,7 +1790,7 @@ class AdminSite:
     ) -> tuple[InlineMutation, Mapping[str, object], Mapping[str, str]] | Response:
         content_type = (context.req.header("content-type") or "").partition(";")[0].strip().lower()
         if content_type != "application/x-www-form-urlencoded":
-            return problem(415, title="Admin forms require application/x-www-form-urlencoded")
+            return problem(415, title=self._messages.text("problem.form_content_type"))
         limits = FormDataLimits(
             max_body_bytes=_FORM_BODY_LIMIT,
             max_file_bytes=0,
@@ -1757,7 +1802,11 @@ class AdminSite:
         try:
             form = await context.req.form_data(limits)
         except (FormDataLimitError, TypeError) as form_error:
-            return problem(413, title="Admin inline form rejected", detail=str(form_error))
+            return problem(
+                413,
+                title=self._messages.text("problem.inline_form"),
+                detail=str(form_error),
+            )
 
         allowed = set(inline.fields) | {"operation", "object_id"}
         raw: dict[str, str] = {}
@@ -1765,16 +1814,16 @@ class AdminSite:
         async with form:
             for name, value in form:
                 if name not in allowed:
-                    errors["__all__"] = "The inline form contains an unexpected field."
+                    errors["__all__"] = self._messages.text("validation.inline.unexpected")
                     continue
                 if name in raw:
-                    errors[name if name in inline.fields else "__all__"] = (
-                        "Submit exactly one value for each inline field."
+                    errors[name if name in inline.fields else "__all__"] = self._messages.text(
+                        "validation.inline.duplicate"
                     )
                     continue
                 if isinstance(value, File):
-                    errors[name if name in inline.fields else "__all__"] = (
-                        "File uploads are not supported by inline fields."
+                    errors[name if name in inline.fields else "__all__"] = self._messages.text(
+                        "validation.inline.upload"
                     )
                     continue
                 raw[name] = value
@@ -1788,25 +1837,31 @@ class AdminSite:
         else:
             operation = "create"
         if raw_operation not in ("create", "update", "delete"):
-            errors["__all__"] = "Choose one inline operation."
+            errors["__all__"] = self._messages.text("validation.inline.operation")
             object_id = None
         existing = {self._record_id(target, record): record for record in collection.items}
         if operation in ("update", "delete") and object_id not in existing:
-            errors["__all__"] = "The inline record does not belong to this parent."
+            errors["__all__"] = self._messages.text("validation.inline.parent")
             if object_id is None:
                 object_id = "__missing__"
         if operation == "create" and object_id is not None:
-            errors["__all__"] = "Inline create must not include an object ID."
+            errors["__all__"] = self._messages.text("validation.inline.create_id")
             object_id = None
         if operation == "create" and collection.total >= inline.max_items:
-            errors["__all__"] = f"At most {inline.max_items} inline records are allowed."
+            errors["__all__"] = self._messages.text(
+                "validation.inline.limit",
+                limit=inline.max_items,
+            )
 
         values: dict[str, object] = {}
         display_values: dict[str, object] = dict(raw)
         if operation != "delete":
             for field_name in inline.fields:
                 admin_field = target.field_map[field_name]
-                parsed_value, parse_error = admin_field.parse(raw.get(field_name))
+                parsed_value, parse_error = admin_field.parse(
+                    raw.get(field_name),
+                    messages=self._messages,
+                )
                 if admin_field.kind == "checkbox":
                     display_values[field_name] = bool(parsed_value)
                 if parse_error is not None:
@@ -1859,8 +1914,8 @@ class AdminSite:
             status=422,
         )
 
-    @staticmethod
     def _safe_inline_errors(
+        self,
         target: AdminResource,
         inline: AdminInline,
         errors: Mapping[str, str],
@@ -1871,7 +1926,7 @@ class AdminSite:
             for name, message in errors.items()
             if message
         }
-        return safe or {"__all__": "The inline record could not be saved."}
+        return safe or {"__all__": self._messages.text("validation.inline.save")}
 
     @classmethod
     def _validate_inline_result(
@@ -1916,7 +1971,10 @@ class AdminSite:
         content = self._renderer.delete_confirmation(resource, record, action=action)
         return self._renderer.response(
             context,
-            title=f"Delete {record.get(resource.title_field, object_id)}",
+            title=self._messages.text(
+                "delete.heading",
+                record=record.get(resource.title_field, object_id),
+            ),
             actor=actor,
             content=content,
         )
@@ -1983,7 +2041,7 @@ class AdminSite:
                 None,
                 "CrossSiteRequest",
             )
-            return problem(403, title="Cross-site admin mutation rejected")
+            return problem(403, title=self._messages.text("problem.cross_site"))
         origin = context.req.header("origin")
         try:
             normalized = None if origin is None else _normalize_origin(origin)
@@ -1991,7 +2049,7 @@ class AdminSite:
             normalized = None
         if normalized not in self._trusted_origins:
             await self._failure(context, action, resource, object_id, None, "InvalidOrigin")
-            return problem(403, title="Admin mutation origin rejected")
+            return problem(403, title=self._messages.text("problem.origin"))
         return None
 
     async def _parse_form(
@@ -2002,7 +2060,7 @@ class AdminSite:
     ) -> tuple[Mapping[str, object], Mapping[str, object], Mapping[str, str]] | Response:
         content_type = (context.req.header("content-type") or "").partition(";")[0].strip().lower()
         if content_type != "application/x-www-form-urlencoded":
-            return problem(415, title="Admin forms require application/x-www-form-urlencoded")
+            return problem(415, title=self._messages.text("problem.form_content_type"))
         limits = FormDataLimits(
             max_body_bytes=_FORM_BODY_LIMIT,
             max_file_bytes=0,
@@ -2014,7 +2072,11 @@ class AdminSite:
         try:
             form = await context.req.form_data(limits)
         except (FormDataLimitError, TypeError) as form_error:
-            return problem(413, title="Admin form rejected", detail=str(form_error))
+            return problem(
+                413,
+                title=self._messages.text("problem.form"),
+                detail=str(form_error),
+            )
 
         allowed = {field.name for field in resource.fields if not field.read_only}
         raw: dict[str, str] = {}
@@ -2022,13 +2084,13 @@ class AdminSite:
         async with form:
             for name, value in form:
                 if name not in allowed:
-                    errors["__all__"] = "The form contains an unexpected field."
+                    errors["__all__"] = self._messages.text("validation.form.unexpected")
                     continue
                 if name in raw:
-                    errors[name] = "Submit exactly one value for this field."
+                    errors[name] = self._messages.text("validation.form.duplicate")
                     continue
                 if isinstance(value, File):
-                    errors[name] = "File uploads are not supported by this field."
+                    errors[name] = self._messages.text("validation.form.upload")
                     continue
                 raw[name] = value
 
@@ -2037,7 +2099,10 @@ class AdminSite:
         for admin_field in resource.fields:
             if admin_field.read_only:
                 continue
-            parsed_value, parse_error = admin_field.parse(raw.get(admin_field.name))
+            parsed_value, parse_error = admin_field.parse(
+                raw.get(admin_field.name),
+                messages=self._messages,
+            )
             if admin_field.kind == "checkbox":
                 display_values[admin_field.name] = bool(parsed_value)
             if parse_error is not None:
@@ -2060,7 +2125,7 @@ class AdminSite:
             )
             if choice is None:
                 values.pop(relationship.field, None)
-                errors[relationship.field] = "Select an authorized related record."
+                errors[relationship.field] = self._messages.text("validation.form.relationship")
                 continue
             values[relationship.field] = choice.id
             display_values[relationship.field] = choice.id
@@ -2079,7 +2144,7 @@ class AdminSite:
     ) -> tuple[AdminBulkAction, tuple[str, ...]] | Response:
         content_type = (context.req.header("content-type") or "").partition(";")[0].strip().lower()
         if content_type != "application/x-www-form-urlencoded":
-            return problem(415, title="Admin forms require application/x-www-form-urlencoded")
+            return problem(415, title=self._messages.text("problem.form_content_type"))
         limits = FormDataLimits(
             max_body_bytes=_FORM_BODY_LIMIT,
             max_file_bytes=0,
@@ -2091,7 +2156,11 @@ class AdminSite:
         try:
             form = await context.req.form_data(limits)
         except (FormDataLimitError, TypeError) as form_error:
-            return problem(413, title="Admin bulk form rejected", detail=str(form_error))
+            return problem(
+                413,
+                title=self._messages.text("problem.bulk_form"),
+                detail=str(form_error),
+            )
 
         action_slug: str | None = None
         object_ids: list[str] = []
@@ -2099,10 +2168,10 @@ class AdminSite:
         async with form:
             for name, value in form:
                 if isinstance(value, File):
-                    error = "File uploads are not accepted by bulk actions."
+                    error = self._messages.text("validation.bulk.upload")
                 elif name == "action":
                     if action_slug is not None:
-                        error = "Submit exactly one bulk action."
+                        error = self._messages.text("validation.bulk.duplicate_action")
                     else:
                         action_slug = value
                 elif name == "selected":
@@ -2111,27 +2180,33 @@ class AdminSite:
                         or len(value) > 255
                         or any(ord(character) < 0x20 for character in value)
                     ):
-                        error = "Selected object IDs must be bounded printable strings."
+                        error = self._messages.text("validation.bulk.object_ids")
                     else:
                         object_ids.append(value)
                 else:
-                    error = "The bulk form contains an unexpected field."
+                    error = self._messages.text("validation.bulk.unexpected")
 
         if error is None and action_slug is None:
-            error = "Choose a bulk action."
+            error = self._messages.text("validation.bulk.choose")
         action = None if action_slug is None else resource.bulk_action_map.get(action_slug)
         if error is None and action is None:
-            error = "Choose a registered bulk action."
+            error = self._messages.text("validation.bulk.registered")
         unique_ids = tuple(dict.fromkeys(object_ids))
         if error is None and not unique_ids:
-            error = "Select at least one record."
+            error = self._messages.text("validation.bulk.select_one")
         if error is None and action is not None and len(object_ids) > action.max_selected:
-            error = f"Select at most {action.max_selected} records."
+            error = self._messages.text(
+                "validation.bulk.limit",
+                limit=action.max_selected,
+            )
         if error is not None or action is None:
-            content = self._renderer.bulk_error(resource, error or "The bulk form is invalid.")
+            content = self._renderer.bulk_error(
+                resource,
+                error or self._messages.text("validation.bulk.invalid"),
+            )
             return self._renderer.response(
                 context,
-                title="Bulk action rejected",
+                title=self._messages.text("bulk.rejected"),
                 actor=actor,
                 content=content,
                 status=422,
@@ -2183,15 +2258,18 @@ class AdminSite:
             status=422,
         )
 
-    @staticmethod
-    def _safe_errors(resource: AdminResource, errors: Mapping[str, str]) -> Mapping[str, str]:
+    def _safe_errors(
+        self,
+        resource: AdminResource,
+        errors: Mapping[str, str],
+    ) -> Mapping[str, str]:
         allowed = set(resource.field_map) | {"__all__"}
         safe = {
             name if name in allowed else "__all__": message
             for name, message in errors.items()
             if message
         }
-        return safe or {"__all__": "The record could not be saved."}
+        return safe or {"__all__": self._messages.text("validation.form.save")}
 
     @staticmethod
     def _validate_bulk_result(
