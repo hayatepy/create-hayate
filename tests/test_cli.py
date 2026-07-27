@@ -50,6 +50,11 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
         "$feature_registrations",
         "$dependencies",
         "$wrangler_bindings",
+        "$ruff_extend_exclude",
+        "$admin_readme",
+        "$admin_production_checklist",
+        "$admin_local_env_line",
+        "$admin_dev_var_line",
     }
     for path in dest.rglob("*"):
         if path.is_file():
@@ -247,7 +252,7 @@ def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monk
 
 
 def test_every_supported_feature_combination_generates_from_components(tmp_path, monkeypatch):
-    names = sorted(FEATURES)
+    names = sorted(set(FEATURES) - {"admin"})
     combinations = [
         combination
         for size in range(len(names) + 1)
@@ -287,6 +292,113 @@ def test_every_supported_feature_combination_generates_from_components(tmp_path,
             entry = (dest / "src/entry.py").read_text() if runtime == "workers" else ""
             assert ("on_fetch =" in entry) is (entrypoint == "global")
     assert observed == 40
+
+
+@pytest.mark.parametrize("entrypoint", ["class", "global"])
+def test_admin_feature_generates_a_fail_closed_sql_and_access_profile(
+    tmp_path,
+    monkeypatch,
+    entrypoint,
+):
+    extra_args = ["--with", "admin"]
+    if entrypoint == "global":
+        extra_args.extend(["--workers-entrypoint", "global"])
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template="workers",
+        extra_args=tuple(extra_args),
+    )
+
+    for expected in (
+        "admin/profile.toml",
+        "admin/hayate-admin-LICENSE",
+        "admin/hayate-htmx-LICENSE",
+        "migrations/0002_create_admin_audit_events.sql",
+        "src/feature_admin.py",
+        "src/hayate_admin/site.py",
+        "src/hayate_htmx/request.py",
+        "tests/test_admin.py",
+    ):
+        assert (dest / expected).is_file(), expected
+
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"hayate-sql>=0.1,<0.2"' in project
+    assert '"jinja2==3.1.6"' in project
+    assert "git+" not in project
+    assert 'extend-exclude = ["src/hayate_admin", "src/hayate_htmx"]' in project
+
+    registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
+    assert "register_access(app)" in registrations
+    assert "register_admin(app)" in registrations
+    assert "ADMIN_EMAILS=developer@example.com" in (dest / ".dev.vars").read_text(encoding="utf-8")
+    assert 'ADMIN_EMAILS = "developer@example.com"' in (dest / "wrangler.toml").read_text(
+        encoding="utf-8"
+    )
+    assert "eddd6213d1ebcd98d9b54a89fde883a349484ba0" in (dest / "admin/profile.toml").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_admin_source_snapshot_is_copied_verbatim(tmp_path, monkeypatch):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template="workers",
+        extra_args=("--with", "admin"),
+    )
+
+    generated = (dest / "src/hayate_admin/contracts.py").read_bytes()
+    bundled = (
+        Path(cli.__file__).parent / "templates/vendor/admin/src/hayate_admin/contracts.py"
+    ).read_bytes()
+    assert generated == bundled
+    assert b'0,62}$"' in generated
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ("--template", "api", "--with", "admin"),
+        ("--template", "workers", "--with", "admin", "--auth", "none"),
+        ("--template", "workers", "--with", "admin", "--frontend", "htmx"),
+    ],
+)
+def test_admin_rejects_unreviewed_compositions_before_writing(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    args,
+):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["demo-app", "--no-input", *args])
+    assert not (tmp_path / "demo-app").exists()
+    assert "error:" in capsys.readouterr().err
+
+
+def test_production_admin_is_explicitly_opt_in(tmp_path, monkeypatch):
+    base = _generate(
+        tmp_path,
+        monkeypatch,
+        name="production-base",
+        template="workers",
+        extra_args=("--preset", "production"),
+    )
+    admin = _generate(
+        tmp_path,
+        monkeypatch,
+        name="production-admin",
+        template="workers",
+        extra_args=("--preset", "production", "--with", "admin"),
+    )
+
+    assert not (base / "src/feature_admin.py").exists()
+    assert (admin / "src/feature_admin.py").is_file()
+    production_config = (admin / "wrangler.toml").read_text(encoding="utf-8")
+    assert 'ADMIN_EMAILS = "operator@example.com"' in production_config
+    checklist = (admin / "PRODUCTION.md").read_text(encoding="utf-8")
+    assert "ADMIN_ALLOWED_ORIGINS" in checklist
 
 
 def test_production_preset_composes_the_complete_golden_path(tmp_path, monkeypatch):

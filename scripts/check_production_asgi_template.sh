@@ -53,6 +53,29 @@ uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1])["title"] == "SQLite production todo"' \
   "${created}"
 
+if [[ -f "${project_dir}/src/feature_admin.py" ]]; then
+  admin_header="cf-access-authenticated-user-email: developer@example.com"
+  admin_created_headers="$(mktemp)"
+  curl --fail --silent --max-time 10 \
+    --dump-header "${admin_created_headers}" \
+    --output /dev/null \
+    -X POST "http://127.0.0.1:${port}/admin/todos/create" \
+    -H "${admin_header}" \
+    -H "origin: https://app.example.com" \
+    -H "content-type: application/x-www-form-urlencoded" \
+    --data "title=SQLite+production+admin"
+  grep -qiE "^location: /admin/todos/object/" "${admin_created_headers}"
+  admin_list="$(
+    curl --fail --silent --max-time 10 \
+      -H "${admin_header}" \
+      "http://127.0.0.1:${port}/admin/todos?q=production"
+  )"
+  if [[ "${admin_list}" != *"SQLite production admin"* ]]; then
+    echo "production ASGI admin did not return its identity-scoped record" >&2
+    exit 1
+  fi
+fi
+
 openapi="$(
   curl --fail --silent --max-time 10 \
     -H "${auth_header}" \

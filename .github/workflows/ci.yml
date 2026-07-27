@@ -103,6 +103,20 @@ jobs:
       - run: uv run ruff format --check .
         working-directory: demo-production
       - run: bash scripts/check_production_asgi_template.sh demo-production
+      - run: >-
+          uv run create-hayate demo-production-admin --template workers
+          --preset production --with admin --no-input
+      - run: uv sync
+        working-directory: demo-production-admin
+      - run: uv run pytest -q
+        working-directory: demo-production-admin
+      - run: uv run ruff check .
+        working-directory: demo-production-admin
+      - run: uv run ruff format --check .
+        working-directory: demo-production-admin
+      - run: uv run python scripts/check_sql_contracts.py
+        working-directory: demo-production-admin
+      - run: bash scripts/check_production_asgi_template.sh demo-production-admin
 
   # Generate the Workers template and drive CRUD through a real workerd.
   workerd:
@@ -111,7 +125,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        template: [workers, mcp, production, production-global]
+        template:
+          [workers, mcp, admin, production, production-admin, production-global]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,6 +138,12 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync --locked
+      - run: uv build
+      - name: Select the built generator wheel
+        run: |
+          wheel="$(find "$PWD/dist" -maxdepth 1 -name 'create_hayate-*.whl')"
+          test -f "$wheel"
+          echo "CREATE_HAYATE_WHEEL=$wheel" >> "$GITHUB_ENV"
       - run: bash scripts/check_workers_template.sh "$TEMPLATE"
         env:
           TEMPLATE: ${{ matrix.template }}

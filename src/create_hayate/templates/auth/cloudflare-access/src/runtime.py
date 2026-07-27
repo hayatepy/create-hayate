@@ -2,4 +2,6 @@
 
 from types import SimpleNamespace
 
-LOCAL_ENV = SimpleNamespace(ENVIRONMENT="local")
+LOCAL_ENV = SimpleNamespace(
+    ENVIRONMENT="local"$admin_local_env_line,
+)

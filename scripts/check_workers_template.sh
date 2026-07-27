@@ -23,9 +23,15 @@ htmx_mode=false
 react_mode=false
 astro_mode=false
 sql_mode=false
+admin_mode=false
 
-if [[ "${template}" == "production" || "${template}" == "production-global" ]]; then
+if [[ "${template}" == "production" || "${template}" == "production-admin" \
+  || "${template}" == "production-global" ]]; then
   production_mode=true
+fi
+if [[ "${template}" == "admin" || "${template}" == "production-admin" ]]; then
+  admin_mode=true
+  sql_mode=true
 fi
 if [[ "${template}" == "production-global" ]]; then
   global_mode=true
@@ -44,8 +50,8 @@ if [[ ",${matrix_features}," == *",sql,"* ]]; then
 fi
 if [[ "${template}" != "workers" && "${template}" != "mcp" \
   && "${htmx_mode}" != true && "${react_mode}" != true && "${astro_mode}" != true \
-  && "${production_mode}" != true ]]; then
-  echo "expected workers, mcp, htmx, react, astro, production, or production-global; got: ${template}" >&2
+  && "${admin_mode}" != true && "${production_mode}" != true ]]; then
+  echo "expected workers, mcp, admin, htmx, react, astro, production, production-admin, or production-global; got: ${template}" >&2
   exit 2
 fi
 if [[ -n "${hayate_wheel}" ]]; then
@@ -73,7 +79,10 @@ if [[ "${matrix_entrypoint}" != "class" && "${matrix_entrypoint}" != "global" ]]
   echo "MATRIX_ENTRYPOINT must be class or global; got: ${matrix_entrypoint}" >&2
   exit 2
 fi
-if [[ "${template}" == "workers" ]]; then
+if [[ "${admin_mode}" == true ]]; then
+  port=8800
+  ready_path="/admin"
+elif [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
 elif [[ "${template}" == "mcp" ]]; then
   port=8794
@@ -95,8 +104,13 @@ else
   ready_path="/health"
 fi
 auth_header=(-H "x-create-hayate-smoke: true")
+identity_email="workerd@example.com"
 if [[ "${production_mode}" == true || "${matrix_auth}" == "cloudflare-access" ]]; then
   auth_header=(-H "cf-access-authenticated-user-email: workerd@example.com")
+fi
+if [[ "${admin_mode}" == true ]]; then
+  identity_email="developer@example.com"
+  auth_header=(-H "cf-access-authenticated-user-email: ${identity_email}")
 fi
 
 terminate_tree() {
@@ -131,6 +145,9 @@ node --version >/dev/null
   fi
   if [[ "${production_mode}" == true ]]; then
     create_args=(demo-app --template workers --preset production --no-input)
+    if [[ "${admin_mode}" == true ]]; then
+      create_args+=(--with admin)
+    fi
     if [[ "${global_mode}" == true ]]; then
       create_args+=(--workers-entrypoint global)
     fi
@@ -138,6 +155,9 @@ node --version >/dev/null
   else
     generated_template="${template}"
     frontend="none"
+    if [[ "${admin_mode}" == true ]]; then
+      generated_template="workers"
+    fi
     if [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]]; then
       generated_template="workers"
       frontend="${template}"
@@ -145,6 +165,9 @@ node --version >/dev/null
     create_args=(demo-app --template "${generated_template}" --no-input)
     if [[ "${frontend}" != "none" ]]; then
       create_args+=(--frontend "${frontend}")
+    fi
+    if [[ "${admin_mode}" == true ]]; then
+      create_args+=(--with admin)
     fi
     if [[ -n "${matrix_features}" ]]; then
       create_args+=(--with "${matrix_features}")
@@ -248,6 +271,16 @@ node --version >/dev/null
     fi
     uv run --no-sync python manage_workers.py d1 migrations apply DB --local
   fi
+  if [[ "${admin_mode}" == true ]]; then
+    for required_admin_path in \
+      "hayate_admin/site.py" \
+      "hayate_htmx/request.py"; do
+      if [[ ! -f "${bundle_dir}/${required_admin_path}" ]]; then
+        echo "vendored admin runtime is absent from Worker bundle: ${required_admin_path}" >&2
+        exit 1
+      fi
+    done
+  fi
   uv run --no-sync python manage_workers.py dev --port "${port}"
 ) >"${log_file}" 2>&1 &
 server_pid=$!
@@ -284,6 +317,44 @@ uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
   "${canonicalized}"
 echo "contract[${template}].canonicalize=${canonicalized}"
+
+if [[ "${admin_mode}" == true ]]; then
+  denied_status="$(
+    curl --silent --show-error --output /dev/null --write-out "%{http_code}" --max-time 5 \
+      -H "cf-access-authenticated-user-email: viewer@example.com" \
+      "http://127.0.0.1:${port}/admin"
+  )"
+  if [[ "${denied_status}" != "403" ]]; then
+    echo "expected non-operator admin request to return 403; got ${denied_status}" >&2
+    exit 1
+  fi
+  created_headers="${test_dir}/admin-created.headers"
+  curl --fail --silent --max-time 5 \
+    --dump-header "${created_headers}" \
+    --output /dev/null \
+    -X POST "http://127.0.0.1:${port}/admin/todos/create" \
+    "${auth_header[@]}" \
+    -H "origin: https://app.example.com" \
+    -H "content-type: application/x-www-form-urlencoded" \
+    --data "title=generated+admin+worker"
+  if ! grep -qiE "^location: /admin/todos/object/" "${created_headers}"; then
+    echo "admin create did not return an object redirect" >&2
+    exit 1
+  fi
+  admin_list="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/admin/todos?q=generated"
+  )"
+  if [[ "${admin_list}" != *"generated admin worker"* ]]; then
+    echo "admin list did not expose the created identity-scoped record" >&2
+    exit 1
+  fi
+  echo "contract[${template}].admin=authorized,origin-checked,audited"
+  if [[ "${production_mode}" != true ]]; then
+    exit 0
+  fi
+fi
 
 if [[ "${template}" == "workers" ]]; then
   created="$(
@@ -504,8 +575,8 @@ if [[ "${production_mode}" == true ]]; then
       "http://127.0.0.1:${port}/whoami"
   )"
   uv run python -c \
-    'import json,sys; assert json.loads(sys.argv[1])["subject"] == "workerd@example.com"' \
-    "${identity}"
+    'import json,sys; assert json.loads(sys.argv[1])["subject"] == sys.argv[2]' \
+    "${identity}" "${identity_email}"
   created="$(
     curl --fail --silent --max-time 5 \
       -X POST "http://127.0.0.1:${port}/todos" \

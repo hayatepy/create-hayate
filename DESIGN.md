@@ -7,7 +7,7 @@
 ## TL;DR
 
 - `uvx create-hayate my-app --template api|workers|mcp` → テスト付きの動くプロジェクト一式を生成。
-- `--with openapi,mcp,sql` と `--auth` は共通baseへ小さなcomponentを合成する。
+- `--with admin,openapi,mcp,sql` と `--auth` は共通baseへ小さなcomponentを合成する。
 - `--frontend none|htmx|react|astro` はruntime/feature/authと独立した最後の合成軸。
 - `--template workers --preset production` は実運用導線を固定したgolden composition。
 - **ゼロ依存**(argparse + shutil + string.Template のみ)。テンプレートはパッケージ内に同梱。
@@ -51,6 +51,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | `openapi` | typed path/response contract、OpenAPI 3.1.1、Scalar、TypeScript export | runtime/schema/型生成 |
 | `mcp` | 2025-11-25、request context、storage共有 | ASGI/workerd |
 | `sql` | migration、query contract、typed facade、SQLite/D1 | compile/実D1 |
+| `admin` | 明示resource、owner scope、bounded query、永続redacted audit | SQLite/Chromium/workerd+D1 |
 | `cloudflare-access` | local明示identity、本番JWT/JWKS検証 | auth境界 |
 | `production` | CORS、header、body limit、rate limit、checklist | golden app |
 | `frontend` | `none` / htmx / React / Astro の独立ownership境界 | overlay衝突検査 |
@@ -71,6 +72,14 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
   各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
 - `mcp`は互換shortcutであり、独立したfull templateを持たない。
 - `mcp`はhayate-authへ強制結合しない。`none`または既存Cloudflare Accessを明示する。
+- `admin`は`sql`とCloudflare Accessを自動合成し、`workers` runtimeかつ
+  `frontend=none`のreview済み境界だけを許可する。これはWorkers専用application coreを
+  意味せず、同じ生成物をASGI+SQLiteでも検証する。匿名mode/default superuserは生成しない。
+  Access subjectでrecordとauditを分離し、operator email allowlist、exact Origin、
+  bounded search/sort/page、値を含まないaudit historyを初期契約にする。
+- `hayate-admin`/`hayate-htmx`公開前はreview済みcommitのMIT sourceを無改変で同梱し、
+  commitとlicenseを生成物へ残す。PyPI公開後の置換はSQLite/Chromium/workerd+D1 gateを
+  再実行する通常の依存更新として扱う。
 
 ## 4. 実装(決定)
 
@@ -88,11 +97,14 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 
 ## 5. テスト戦略
 
-- CI: 40 support組合せと2 production entrypointを全て
+- CI: legacy 40組合せ、admin 8組合せ、production/admin-production各2 entrypointの
+  合計52構成を全て
   「生成 → dependency resolution → import」する。
 - base Workers / MCP / productionを実workerdで起動する。productionはD1 migration後、
   Access identity付きHTTP writeをMCPからreadし、同一data/identity境界を固定する。
 - golden appを実ASGIでも起動し、同じ`src/app.py`をSQLiteで検証する。
+- admin profileは生成後direct request、実Chromium、ASGI+SQLite、実workerd+D1で
+  認証/allowlist/owner scope/Origin/CRUD/search/sort/history/audit/bundle inclusionを固定する。
 - htmx profileは生成後のdirect request、実Chromium、実workerdを通し、page/fragment、
   CRUD/validation/history/SSE、CSP/CSRF、Cloudflare Static Assetsを固定する。
 - React profileは生成後のOpenAPI drift、TypeScript、Vite build、実Chromium CRUD/deep-link、
