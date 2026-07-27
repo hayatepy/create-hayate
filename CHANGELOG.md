@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.11.0] - 2026-07-28
+
 ### Added
 
 - Generate validated request correlation and compact structured access events
