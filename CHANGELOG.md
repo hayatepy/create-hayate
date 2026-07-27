@@ -36,6 +36,13 @@ All notable changes to create-hayate are documented here.
   generated Hayate application, fail on artifact drift, and exercise
   `npm ci`, typecheck, build, dependency audit, Chromium CRUD/deep links, and
   Cloudflare Static Assets through real workerd.
+- Generate a pinned static Astro site with public build-time content, a small
+  visible Preact island for authenticated runtime state, local same-origin API
+  proxying, static-output privacy checks, custom deep routes and 404s, and
+  Cloudflare Static Assets routing through real workerd.
+- Share one generated, drift-checked OpenAPI document, TypeScript schema, and
+  `openapi-fetch` client between the React and Astro profiles, with no
+  handwritten browser API models.
 
 ### Changed
 

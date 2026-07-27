@@ -5,8 +5,11 @@ import type { paths } from "./schema";
 export type Todo =
   paths["/api/todos"]["get"]["responses"][200]["content"]["application/json"][number];
 
+const runtimeOrigin =
+  typeof window === "undefined" ? "https://build-time-data.invalid" : window.location.origin;
+
 const client = createClient<paths>({
-  baseUrl: window.location.origin,
+  baseUrl: runtimeOrigin,
   credentials: "include",
 });
 

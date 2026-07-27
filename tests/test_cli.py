@@ -411,42 +411,6 @@ def test_implicit_frontend_none_preserves_the_explicit_none_output(tmp_path, mon
     assert not (implicit / "frontend").exists()
 
 
-@pytest.mark.parametrize("frontend", ["astro"])
-@pytest.mark.parametrize("template", sorted(TEMPLATES))
-def test_frontend_is_an_orthogonal_overlay(
-    tmp_path,
-    monkeypatch,
-    frontend,
-    template,
-):
-    backend_root = tmp_path / "backend"
-    frontend_root = tmp_path / "frontend-case"
-    backend_root.mkdir()
-    frontend_root.mkdir()
-    backend = _generate(backend_root, monkeypatch, template=template)
-    composed = _generate(
-        frontend_root,
-        monkeypatch,
-        template=template,
-        extra_args=("--frontend", frontend),
-    )
-
-    backend_files = _file_tree(backend)
-    composed_backend_files = {
-        path: content
-        for path, content in _file_tree(composed).items()
-        if path.parts[0] != "frontend"
-    }
-    assert composed_backend_files == backend_files
-
-    profile = (composed / "frontend/profile.toml").read_text(encoding="utf-8")
-    assert f'profile = "{frontend}"' in profile
-    assert 'project = "demo-app"' in profile
-    for path in (composed / "frontend").rglob("*"):
-        if path.is_file():
-            assert "$project_name" not in path.read_text(encoding="utf-8"), path
-
-
 def test_frontend_source_trees_cannot_duplicate_backend_paths():
     templates = Path(cli.__file__).parent / "templates"
     backend_roots = [
@@ -604,6 +568,91 @@ def test_react_profile_generates_a_typed_same_origin_spa(
         config = wrangler.read_text(encoding="utf-8")
         assert 'directory = "./frontend/dist"' in config
         assert 'not_found_handling = "single-page-application"' in config
+        assert 'run_worker_first = ["/api/*"' in config
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_astro_profile_generates_a_static_site_with_a_runtime_island(
+    tmp_path,
+    monkeypatch,
+    template,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template=template,
+        extra_args=("--frontend", "astro"),
+    )
+
+    for expected in (
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/openapi.json",
+        "frontend/src/api/schema.d.ts",
+        "frontend/src/api/client.ts",
+        "frontend/src/components/WorkspaceIsland.tsx",
+        "frontend/src/data/public.ts",
+        "frontend/src/pages/index.astro",
+        "frontend/src/pages/principles.astro",
+        "frontend/src/pages/404.astro",
+        "frontend/scripts/check-static-output.mjs",
+        "frontend/scripts/sync-openapi.mjs",
+        "frontend/tests/smoke.spec.ts",
+        "frontend/public/_headers",
+        "frontend/.node-version",
+        "frontend/.gitignore",
+        "src/feature_openapi.py",
+    ):
+        assert (dest / expected).is_file(), expected
+
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"hayate-openapi>=0.5,<0.6"' in project
+    assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
+        encoding="utf-8"
+    )
+    application = (dest / "src/app.py").read_text(encoding="utf-8")
+    todo_api = (dest / "src/todo_api.py").read_text(encoding="utf-8")
+    assert '@app.get("/api/health")' in application
+    assert '@app.get("/api/todos")' in todo_api
+
+    package = (dest / "frontend/package.json").read_text(encoding="utf-8")
+    for dependency in (
+        '"astro": "7.1.3"',
+        '"@astrojs/preact": "6.0.1"',
+        '"preact": "10.29.7"',
+        '"openapi-typescript": "7.13.0"',
+        '"openapi-fetch": "0.17.0"',
+    ):
+        assert dependency in package
+    assert '"output: \\"static\\""' not in package
+    assert 'output: "static"' in (dest / "frontend/astro.config.mjs").read_text(encoding="utf-8")
+
+    island = (dest / "frontend/src/components/WorkspaceIsland.tsx").read_text(encoding="utf-8")
+    page = (dest / "frontend/src/pages/index.astro").read_text(encoding="utf-8")
+    client = (dest / "frontend/src/api/client.ts").read_text(encoding="utf-8")
+    assert "useEffect" in island
+    assert "listTodos()" in island
+    assert "<WorkspaceIsland client:visible />" in page
+    assert 'from "./schema"' in client
+    assert 'credentials: "include"' in client
+    assert not (dest / "frontend/src/pages/api").exists()
+    assert not any((dest / "frontend/src").rglob("_actions.*"))
+    assert "interface Todo" not in island
+
+    document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
+    schema = (dest / "frontend/src/api/schema.d.ts").read_text(encoding="utf-8")
+    assert '"title": "demo-app"' in document
+    assert '"/api/todos"' in document
+    assert '"/api/todos"' in schema
+
+    wrangler = dest / "wrangler.toml"
+    if template == "api":
+        assert not wrangler.exists()
+    else:
+        config = wrangler.read_text(encoding="utf-8")
+        assert 'directory = "./frontend/dist"' in config
+        assert 'not_found_handling = "404-page"' in config
+        assert 'html_handling = "auto-trailing-slash"' in config
         assert 'run_worker_first = ["/api/*"' in config
 
 

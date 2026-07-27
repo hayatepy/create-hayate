@@ -61,7 +61,11 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - frontendは同じbackend templateを複製せず、profile固有の非衝突fileだけを合成する。
   htmxは`src/feature_htmx.py`、`templates/`、`public/`、profile/testを所有し、JSONとHTMLから
   共通のtodo domain/storageを呼ぶ。Reactは`frontend/`内のVite SPAと生成OpenAPI型だけを所有し、
-  Hayateの`/api`を唯一のbackend contractとする。Astroはprofile実装までmetadataだけを持つ。
+  Hayateの`/api`を唯一のbackend contractとする。Astroも`frontend/`を所有するが静的出力を
+  defaultとし、public contentはbuild時、identity依存dataは小さなPreact islandのhydrate後だけ
+  同一originの`/api`から取得する。React/AstroのOpenAPI document・生成TypeScript型・clientは
+  共通componentから合成し、profileごとの手書きmodelを持たない。Astro SSRはadapterを明示的に
+  追加する将来のBFF拡張であり、初期runtimeには含めない。
   htmx package公開前はASGIがrelease-gate commitをVCS固定し、Workersは同commitのsourceと、
   deploy前にcanonical HTMLから再生成する`DictLoader` moduleを同梱する。
   各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
@@ -93,6 +97,9 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
   CRUD/validation/history/SSE、CSP/CSRF、Cloudflare Static Assetsを固定する。
 - React profileは生成後のOpenAPI drift、TypeScript、Vite build、実Chromium CRUD/deep-link、
   npm audit、実workerdのAPI-first routing/SPA fallback/security headerを固定する。
+- Astro profileは生成後のOpenAPI drift、TypeScript、静的build、private data非埋め込み監査、
+  実Chromium CRUD/deep-link/custom 404、npm audit、実workerdのAPI-first routingと
+  Cloudflare Static Assetsを固定する。
 - 本体の新リリース時にテンプレートの hayate バージョンを上げる(Renovate 等は使わず
   リリースチェックリストに載せる。依存が hayate だけなので手動で足りる)。
 

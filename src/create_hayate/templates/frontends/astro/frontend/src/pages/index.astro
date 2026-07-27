@@ -1,0 +1,52 @@
+---
+import WorkspaceIsland from "../components/WorkspaceIsland";
+import { publicNotes } from "../data/public";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Field notes"
+  description="A static Astro field manual with a typed Hayate runtime island."
+>
+  <main>
+    <section class="hero">
+      <p class="section-label">Field manual · volume 01</p>
+      <h1>Build less.<br /><em>Say more.</em></h1>
+      <div class="hero-aside">
+        <p>
+          A content-first starter with one carefully drawn line between what
+          belongs in static HTML and what belongs to a signed-in reader.
+        </p>
+        <span>Static by default</span>
+      </div>
+    </section>
+
+    <section class="public-ledger" aria-labelledby="ledger-title">
+      <header>
+        <p class="section-label">Build-time public data</p>
+        <h2 id="ledger-title">Notes worth publishing</h2>
+      </header>
+      <ol>
+        {publicNotes.map((note) => (
+          <li>
+            <span>{note.number}</span>
+            <h3>{note.title}</h3>
+            <p>{note.text}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+
+    <section class="boundary">
+      <div class="boundary-copy">
+        <p class="section-label">The hydration line</p>
+        <h2>Public knowledge above.<br />Private context below.</h2>
+        <p>
+          Astro ships this page as HTML. The next section becomes interactive
+          only when it enters view, then talks to Hayate through generated API types.
+        </p>
+      </div>
+      <WorkspaceIsland client:visible />
+    </section>
+  </main>
+</BaseLayout>

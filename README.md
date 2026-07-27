@@ -73,7 +73,7 @@ uvx create-hayate my-app \
 | `none` (default) | Backend-only output; byte-for-byte compatibility path |
 | `htmx` | Executable Hayate + htmx app at `/app`; shared JSON API at `/api` |
 | `react` | Vite/React Router SPA with generated, drift-checked API types |
-| `astro` | A separate static/hybrid site consumes an explicit Hayate API |
+| `astro` | Static Astro site with a small Preact runtime island and generated API types |
 
 The frontend layer is composed last and is forbidden from overwriting backend
 files. `htmx` generates autoescaping Jinja templates, identity-scoped CRUD,
@@ -91,9 +91,21 @@ and fails CI when the OpenAPI document drifts. Vite proxies `/api` locally;
 the Workers template serves the production build through Cloudflare Static
 Assets with API-first routing and SPA deep-link fallback. `npm ci`, typecheck,
 build, dependency audit, Chromium CRUD, and real-workerd routing are exercised
-in CI. Astro retains a metadata-only ownership boundary until its
-profile-specific change lands. Non-`none` profiles are rejected with the
-production preset until each profile has a reviewed production contract.
+in CI.
+
+`astro` generates a pinned Node 24 static site in the same `frontend/`
+boundary. Public content is imported at build time; authenticated TODO data is
+requested only after the visible Preact island hydrates in the browser. React
+and Astro share one generated OpenAPI contract component, so neither profile
+maintains handwritten API models. Local development proxies `/api` to Hayate,
+while Workers serves the static build and API from one origin. The generated
+static-output audit rejects private data markers, and CI covers `npm ci`,
+typecheck, static build, Chromium persistence/deep links, dependency audit,
+and real-workerd routing. Astro SSR remains an explicit, adapter-backed BFF
+extension rather than part of the initial runtime.
+
+Non-`none` profiles are rejected with the production preset until each profile
+has a reviewed production contract.
 
 ## Production preset
 
@@ -122,7 +134,8 @@ reads the same authenticated data through MCP.
 - **Orthogonal frontend ownership.** Runtime and backend features compose
   first; one frontend overlay may add only non-colliding files. htmx calls the
   same domain and storage functions as the JSON API; React consumes generated
-  OpenAPI types without introducing a second backend.
+  OpenAPI types without introducing a second backend; Astro keeps public
+  build-time content separate from browser-only private state.
 - **Portable application core.** `src/app.py` does not change between ASGI and
   Workers. Runtime resources enter through the Hayate request context.
 - **Feature-complete Workers default.** `WorkerEntrypoint` remains the default.
