@@ -1,0 +1,4 @@
+profile = "htmx"
+owner = "hayate"
+rendering = "server"
+project = "$project_name"

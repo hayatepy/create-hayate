@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from create_hayate import cli
-from create_hayate.cli import FEATURES, TEMPLATES, main
+from create_hayate.cli import FEATURES, FRONTENDS, TEMPLATES, main
 
 
 def _generate(
@@ -311,6 +311,7 @@ def test_production_preset_supports_the_explicit_global_http_entrypoint(
         ("--template", "workers", "--preset", "production", "--auth", "none"),
         ("--template", "workers", "--with", "unknown"),
         ("--template", "workers", "--with", ","),
+        ("--template", "api", "--frontend", "vue"),
     ],
 )
 def test_unsupported_combinations_fail_before_writing(tmp_path, monkeypatch, capsys, args):
@@ -365,3 +366,115 @@ def test_choose_template_reprompts_until_valid(monkeypatch, capsys):
     answers = iter(["nope", "9", "3"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
     assert cli._choose_template() == "mcp"
+
+
+def _file_tree(root):
+    return {path.relative_to(root): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+
+
+def test_implicit_frontend_none_preserves_the_explicit_none_output(tmp_path, monkeypatch):
+    implicit_root = tmp_path / "implicit"
+    explicit_root = tmp_path / "explicit"
+    implicit_root.mkdir()
+    explicit_root.mkdir()
+
+    implicit = _generate(implicit_root, monkeypatch)
+    explicit = _generate(
+        explicit_root,
+        monkeypatch,
+        extra_args=("--frontend", "none"),
+    )
+
+    assert _file_tree(implicit) == _file_tree(explicit)
+    assert not (implicit / "frontend").exists()
+
+
+@pytest.mark.parametrize("frontend", sorted(set(FRONTENDS) - {"none"}))
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_frontend_is_an_orthogonal_overlay(
+    tmp_path,
+    monkeypatch,
+    frontend,
+    template,
+):
+    backend_root = tmp_path / "backend"
+    frontend_root = tmp_path / "frontend-case"
+    backend_root.mkdir()
+    frontend_root.mkdir()
+    backend = _generate(backend_root, monkeypatch, template=template)
+    composed = _generate(
+        frontend_root,
+        monkeypatch,
+        template=template,
+        extra_args=("--frontend", frontend),
+    )
+
+    backend_files = _file_tree(backend)
+    composed_backend_files = {
+        path: content
+        for path, content in _file_tree(composed).items()
+        if path.parts[0] != "frontend"
+    }
+    assert composed_backend_files == backend_files
+
+    profile = (composed / "frontend/profile.toml").read_text(encoding="utf-8")
+    assert f'profile = "{frontend}"' in profile
+    assert 'project = "demo-app"' in profile
+    for path in (composed / "frontend").rglob("*"):
+        if path.is_file():
+            assert "$project_name" not in path.read_text(encoding="utf-8"), path
+
+
+def test_frontend_source_trees_cannot_duplicate_backend_paths():
+    root = Path(cli.__file__).parent / "templates/frontends"
+
+    for frontend in set(FRONTENDS) - {"none"}:
+        paths = [
+            path.relative_to(root / frontend)
+            for path in (root / frontend).rglob("*")
+            if path.is_file()
+        ]
+        assert paths
+        assert all(path.parts[0] == "frontend" for path in paths)
+
+
+def test_frontend_overlay_collision_fails_without_overwriting(tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "destination"
+    (source / "src").mkdir(parents=True)
+    (destination / "src").mkdir(parents=True)
+    (source / "src/app.py").write_text("frontend", encoding="utf-8")
+    existing = destination / "src/app.py"
+    existing.write_text("backend", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="frontend overlay would overwrite"):
+        cli._render_tree(source, destination, {}, allow_overwrite=False)
+
+    assert existing.read_text(encoding="utf-8") == "backend"
+
+
+@pytest.mark.parametrize("frontend", sorted(set(FRONTENDS) - {"none"}))
+def test_frontend_production_contract_fails_before_writing(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    frontend,
+):
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "demo-app",
+                "--template",
+                "workers",
+                "--preset",
+                "production",
+                "--frontend",
+                frontend,
+                "--no-input",
+            ]
+        )
+
+    assert not (tmp_path / "demo-app").exists()
+    assert "cannot yet be combined with --preset production" in capsys.readouterr().err

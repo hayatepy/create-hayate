@@ -23,6 +23,13 @@ FEATURES: dict[str, str] = {
     "mcp": "MCP 2025-11-25 tools on the same application",
     "sql": "checked SQL contracts with SQLite and Cloudflare D1",
 }
+FRONTENDS: dict[str, str] = {
+    "none": "backend-only project (compatibility default)",
+    "htmx": "server-owned hypermedia UI",
+    "react": "React single-page application with a Hayate API",
+    "astro": "Astro static or hybrid site with a Hayate API",
+}
+DEFAULT_FRONTEND = "none"
 AUTHS = ("none", "cloudflare-access")
 PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
@@ -32,6 +39,7 @@ _DEPENDENCIES = {
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }
+_FRONTEND_TEMPLATES = {frontend: frozenset(TEMPLATES) for frontend in FRONTENDS}
 
 # One name serves as directory, distribution, and Workers service name,
 # so enforce the strictest of the three.
@@ -64,21 +72,37 @@ _SKIP_DIRS = {"__pycache__"}
 class ScaffoldPlan:
     template: str
     runtime: str
+    frontend: str
     features: tuple[str, ...]
     auth: str
     production: bool
     workers_entrypoint: str
 
 
-def _render_tree(src: Traversable, dest: Path, variables: dict[str, str]) -> None:
+def _render_tree(
+    src: Traversable,
+    dest: Path,
+    variables: dict[str, str],
+    *,
+    allow_overwrite: bool = True,
+) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     for entry in src.iterdir():
         if entry.name in _SKIP_DIRS:
             continue
         target = dest / _RENAMES.get(entry.name, entry.name)
         if entry.is_dir():
-            _render_tree(entry, target, variables)
+            _render_tree(
+                entry,
+                target,
+                variables,
+                allow_overwrite=allow_overwrite,
+            )
         else:
+            if target.exists() and not allow_overwrite:
+                raise FileExistsError(
+                    f"frontend overlay would overwrite generated backend file: {target}"
+                )
             text = entry.read_text(encoding="utf-8")
             target.write_text(Template(text).substitute(variables), encoding="utf-8", newline="\n")
 
@@ -124,6 +148,7 @@ def _build_plan(
 ) -> ScaffoldPlan:
     features = _parse_features(args.features, parser)
     runtime = "api" if template == "api" else "workers"
+    frontend = args.frontend
     if template == "mcp":
         features.add("mcp")
 
@@ -146,11 +171,22 @@ def _build_plan(
         )
     if runtime == "api" and args.workers_entrypoint != "class":
         parser.error("--workers-entrypoint applies only to workers and mcp templates")
+    if template not in _FRONTEND_TEMPLATES[frontend]:
+        supported = ", ".join(sorted(_FRONTEND_TEMPLATES[frontend]))
+        parser.error(
+            f"--frontend {frontend} does not support --template {template}; choose from {supported}"
+        )
+    if production and frontend != "none":
+        parser.error(
+            f"--frontend {frontend} cannot yet be combined with --preset production; "
+            "use --frontend none until that profile's production contract is available"
+        )
 
     ordered = tuple(feature for feature in _FEATURE_ORDER if feature in features)
     return ScaffoldPlan(
         template=template,
         runtime=runtime,
+        frontend=frontend,
         features=ordered,
         auth=auth,
         production=production,
@@ -337,6 +373,7 @@ simple = {{ limit = 60, period = 60 }}
 
     variables = {
         "project_name": name,
+        "frontend": plan.frontend,
         "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),
@@ -399,6 +436,13 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
         _render_tree(templates.joinpath("auth", "cloudflare-access"), dest, variables)
     if plan.production:
         _render_tree(templates.joinpath("production"), dest, variables)
+    if plan.frontend != "none":
+        _render_tree(
+            templates.joinpath("frontends", plan.frontend),
+            dest,
+            variables,
+            allow_overwrite=False,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -431,6 +475,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="features",
         metavar="FEATURES",
         help="comma-separated optional features: openapi,mcp,sql",
+    )
+    parser.add_argument(
+        "--frontend",
+        choices=tuple(FRONTENDS),
+        default=DEFAULT_FRONTEND,
+        help="frontend profile: none (default), htmx, react, or astro",
     )
     parser.add_argument(
         "--auth",
@@ -479,9 +529,10 @@ def main(argv: list[str] | None = None) -> int:
         else "uv run python manage_workers.py dev"
     )
     feature_summary = ", ".join(plan.features) or "base"
+    frontend_summary = "" if plan.frontend == "none" else f"; frontend={plan.frontend}"
     print(
         f"\nCreated {args.name}/ from the {template} template "
-        f"({feature_summary}; auth={plan.auth}). Next:\n"
+        f"({feature_summary}; auth={plan.auth}{frontend_summary}). Next:\n"
     )
     print(f"  cd {args.name}")
     print("  uv run pytest")
