@@ -8,7 +8,8 @@ from contracts import describe, validated
 from generated_features import register_features
 from identity import principal, subject
 from runtime import LOCAL_ENV
-from storage import create_todo, delete_todo, get_todo, list_todos
+from storage import create_todo, delete_todo, get_todo, list_todos, update_todo
+from todo_domain import InvalidTodoTitle, normalize_title
 
 app = Hayate(env=LOCAL_ENV)
 
@@ -53,25 +54,25 @@ def _validated_todo_id(c: Context) -> str:
     return value
 
 
-@app.get("/health")
+@app.get("$api_prefix/health")
 @describe(summary="Health check", response={"type": "object"}, operation_id="health")
 async def health(c: Context):
     return c.json({"status": "ok"})
 
 
-@app.get("/canonicalize")
+@app.get("$api_prefix/canonicalize")
 @describe(summary="Canonicalize an international hostname", operation_id="canonicalize")
 async def canonicalize(c: Context):
     return c.json({"hostname": URL("https://日本語.example/").hostname})
 
 
-@app.get("/whoami")
+@app.get("$api_prefix/whoami")
 @describe(summary="Current request identity", response={"type": "object"}, operation_id="whoami")
 async def whoami(c: Context):
     return c.json(principal(c))
 
 
-@app.get("/todos")
+@app.get("$api_prefix/todos")
 @describe(
     summary="List todos",
     response={"type": "array", "items": TODO_SCHEMA},
@@ -81,7 +82,7 @@ async def todos_index(c: Context):
     return c.json(await list_todos(c, subject(c)))
 
 
-@app.post("/todos", validated("json", TODO_CREATE_SCHEMA))
+@app.post("$api_prefix/todos", validated("json", TODO_CREATE_SCHEMA))
 @describe(
     summary="Create a todo",
     status=201,
@@ -91,14 +92,15 @@ async def todos_index(c: Context):
 )
 async def todos_create(c: Context):
     data = c.req.valid("json")
-    title = data.get("title") if isinstance(data, dict) else None
-    if not isinstance(title, str) or not title.strip() or len(title) > 200:
-        raise HTTPException(400, title="title must be a non-empty string up to 200 characters")
-    todo = await create_todo(c, subject(c), title.strip())
+    try:
+        title = normalize_title(data.get("title") if isinstance(data, dict) else None)
+    except InvalidTodoTitle as exc:
+        raise HTTPException(400, title=str(exc)) from exc
+    todo = await create_todo(c, subject(c), title)
     return c.json(todo, status=201)
 
 
-@app.get("/todos/:id", validated("param", TODO_ID_SCHEMA))
+@app.get("$api_prefix/todos/:id", validated("param", TODO_ID_SCHEMA))
 @describe(
     summary="Get a todo",
     response=TODO_SCHEMA,
@@ -112,7 +114,30 @@ async def todos_show(c: Context):
     return c.json(todo)
 
 
-@app.delete("/todos/:id", validated("param", TODO_ID_SCHEMA))
+@app.patch(
+    "$api_prefix/todos/:id",
+    validated("param", TODO_ID_SCHEMA),
+    validated("json", TODO_CREATE_SCHEMA),
+)
+@describe(
+    summary="Update a todo",
+    response=TODO_SCHEMA,
+    responses={400: None, 404: None},
+    operation_id="updateTodo",
+)
+async def todos_update(c: Context):
+    data = c.req.valid("json")
+    try:
+        title = normalize_title(data.get("title") if isinstance(data, dict) else None)
+    except InvalidTodoTitle as exc:
+        raise HTTPException(400, title=str(exc)) from exc
+    todo = await update_todo(c, subject(c), _validated_todo_id(c), title)
+    if todo is None:
+        raise HTTPException(404, title="Todo not found")
+    return c.json(todo)
+
+
+@app.delete("$api_prefix/todos/:id", validated("param", TODO_ID_SCHEMA))
 @describe(summary="Delete a todo", status=204, responses={404: None}, operation_id="deleteTodo")
 async def todos_delete(c: Context):
     if not await delete_todo(c, subject(c), _validated_todo_id(c)):

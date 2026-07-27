@@ -11,6 +11,7 @@ dev = $dev_dependencies
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = $pythonpath
+$pytest_markers
 
 [tool.ruff]
 line-length = 100

@@ -58,6 +58,30 @@ async def get_todo(c: Context, owner: str, todo_id: str) -> Todo | None:
     return None if row is None else _todo(row)
 
 
+async def update_todo(
+    c: Context,
+    owner: str,
+    todo_id: str,
+    title: str,
+) -> Todo | None:
+    result = await queries.update_todo(
+        _database(c),
+        owner=owner,
+        todo_id=todo_id,
+        title=title,
+    )
+    return None if result.rows_affected != 1 else await get_todo(c, owner, todo_id)
+
+
+async def toggle_todo(c: Context, owner: str, todo_id: str) -> Todo | None:
+    result = await queries.toggle_todo(
+        _database(c),
+        owner=owner,
+        todo_id=todo_id,
+    )
+    return None if result.rows_affected != 1 else await get_todo(c, owner, todo_id)
+
+
 async def delete_todo(c: Context, owner: str, todo_id: str) -> bool:
     result = await queries.delete_todo(_database(c), owner=owner, todo_id=todo_id)
     return result.rows_affected == 1

@@ -12,6 +12,23 @@ All notable changes to create-hayate are documented here.
   collisions before a partial project can survive.
 - Add isolated profile metadata boundaries and fail-fast production
   compatibility constraints for the upcoming executable frontend profiles.
+- Generate an executable Hayate + htmx profile with shared JSON/HTML domain
+  logic, safe Jinja page/fragment rendering, CRUD validation, history, SSE,
+  identity and CSRF boundaries, and responsive starter UI.
+- Pin the reviewed hayate-htmx 0.1 release-gate commit and self-host htmx
+  2.0.10 with recorded SHA-256/SRI, ASGI serving, Cloudflare Static Assets,
+  direct tests, Chromium smoke tests, and a real workerd contract.
+- Install the immutable hayate-htmx Git source on ASGI and bundle the same
+  license-preserving source snapshot on Workers until Pywrangler can consume
+  its VCS lock or the package is published.
+- Regenerate a deterministic Jinja `DictLoader` module from canonical HTML
+  before Workers commands, retaining editable file templates locally without
+  relying on unsupported arbitrary files in the Python module bundle.
+
+### Changed
+
+- Add shared todo title normalization and update/toggle storage operations so
+  API, htmx, in-memory, SQLite, and D1 compositions use one domain contract.
 
 ## [0.5.1] - 2026-07-27
 

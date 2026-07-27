@@ -33,11 +33,18 @@ DEFAULT_FRONTEND = "none"
 AUTHS = ("none", "cloudflare-access")
 PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
-_REGISTRATION_ORDER = ("access", "production", "mcp", "openapi")
+_REGISTRATION_ORDER = ("access", "production", "mcp", "openapi", "htmx")
 _DEPENDENCIES = {
     "openapi": "hayate-openapi>=0.4.2,<0.5",
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
+}
+_HTMX_COMMIT = "255de5bf3fc3f3f7665572940ffb5bfcef06d6b2"
+_FRONTEND_DEPENDENCIES = {
+    "none": (),
+    "htmx": (f"hayate-htmx @ git+https://github.com/hayatepy/hayate-htmx.git@{_HTMX_COMMIT}",),
+    "react": (),
+    "astro": (),
 }
 _FRONTEND_TEMPLATES = {frontend: frozenset(TEMPLATES) for frontend in FRONTENDS}
 
@@ -66,6 +73,7 @@ _RENAMES = {
     "nvmrc": ".nvmrc",
 }
 _SKIP_DIRS = {"__pycache__"}
+_VERBATIM_SUFFIXES = (".min.js",)
 
 
 @dataclass(frozen=True)
@@ -103,6 +111,9 @@ def _render_tree(
                 raise FileExistsError(
                     f"frontend overlay would overwrite generated backend file: {target}"
                 )
+            if entry.name.endswith(_VERBATIM_SUFFIXES):
+                target.write_bytes(entry.read_bytes())
+                continue
             text = entry.read_text(encoding="utf-8")
             target.write_text(Template(text).substitute(variables), encoding="utf-8", newline="\n")
 
@@ -204,6 +215,8 @@ def _feature_registration(plan: ScaffoldPlan) -> tuple[str, str]:
         enabled.add("access")
     if plan.production:
         enabled.add("production")
+    if plan.frontend == "htmx":
+        enabled.add("htmx")
     ordered = [name for name in _REGISTRATION_ORDER if name in enabled]
     imports = "\n".join(
         f"from feature_{name} import register as register_{name}" for name in sorted(enabled)
@@ -223,6 +236,8 @@ def _readme_sections(plan: ScaffoldPlan) -> dict[str, str]:
         feature_names.append(f"auth:{plan.auth}")
     if plan.production:
         feature_names.append("production-controls")
+    if plan.frontend == "htmx":
+        feature_names.append("frontend:htmx")
 
     quickstart = ["uv sync", "uv run pytest"]
     if sql and plan.runtime == "workers":
@@ -289,6 +304,35 @@ Complete every item in [PRODUCTION.md](PRODUCTION.md) before deployment.
 The generated configuration fails closed when production identity, CORS, D1,
 or rate-limit bindings are missing.
 """
+    frontend_section = ""
+    if plan.frontend == "htmx":
+        frontend_section = """
+## htmx full-stack UI
+
+Open `/app` for the server-rendered task UI. JSON contracts live under
+`/api`, the current identity is visible at `/auth`, and every browser request
+stays on the application origin.
+
+The profile pins the reviewed `hayate-htmx` 0.1 release-gate commit,
+`255de5bf3fc3f3f7665572940ffb5bfcef06d6b2`, and uses autoescaping Jinja
+templates, strict same-origin mutation checks, CSP, page/fragment `Vary`
+headers, and the self-hosted htmx 2.0.10 asset. ASGI resolves that immutable
+Git commit directly. Until the package is published, Workers includes the
+same small source snapshot because Pywrangler cannot install VCS records from
+its portable lock. The commit and asset SHA-256 are recorded in
+`frontend/profile.toml` and asserted by generated tests.
+
+Run the optional Chromium smoke test once the browser is installed:
+
+```sh
+uv run playwright install chromium
+HAYATE_HTMX_BROWSER_TESTS=1 uv run pytest -m browser -q
+```
+
+ASGI serves `public/assets` through Hayate. The Workers configuration publishes
+`public` through Cloudflare Static Assets and sends `/app`, `/api`, and `/auth`
+to Python first. Both paths use the same same-origin URLs and application code.
+"""
     return {
         "feature_summary": ", ".join(feature_names) if feature_names else "base API",
         "quickstart_commands": "\n".join(quickstart),
@@ -297,6 +341,7 @@ or rate-limit bindings are missing.
         "openapi_readme": openapi_section.strip(),
         "auth_readme": auth_section.strip(),
         "production_readme": production_section.strip(),
+        "frontend_readme": frontend_section.strip(),
     }
 
 
@@ -304,6 +349,10 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
     dependencies = ["hayate>=0.12.1,<0.13"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
+    if plan.frontend == "htmx" and plan.runtime == "workers":
+        dependencies.append("jinja2==3.1.6")
+    else:
+        dependencies.extend(_FRONTEND_DEPENDENCIES[plan.frontend])
     dev_dependencies = [
         "pytest>=8.3",
         "pytest-asyncio>=0.25",
@@ -317,6 +366,8 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
                 "workers-runtime-sdk>=1.6,<2",
             ]
         )
+    if plan.frontend == "htmx":
+        dev_dependencies.append("playwright>=1.54,<2")
 
     feature_imports, feature_registrations = _feature_registration(plan)
     bindings: list[str] = []
@@ -374,6 +425,7 @@ simple = {{ limit = 60, period = 60 }}
     variables = {
         "project_name": name,
         "frontend": plan.frontend,
+        "api_prefix": "/api" if plan.frontend == "htmx" else "",
         "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),
@@ -399,6 +451,35 @@ simple = {{ limit = 60, period = 60 }}
             else "This project uses the default `WorkerEntrypoint` class, preserving "
             "named RPC methods and class handlers such as `scheduled`."
         ),
+        "workers_preflight": (
+            """
+    embedded = subprocess.run(
+        [sys.executable, "scripts/embed_htmx_templates.py"],
+        check=False,
+    )
+    if embedded.returncode != 0:
+        return embedded.returncode
+""".rstrip()
+            if plan.runtime == "workers" and plan.frontend == "htmx"
+            else ""
+        ),
+        "htmx_import_block": (
+            "\nfrom hayate_htmx import HtmxTemplates, JinjaRenderer, append_htmx_vary, with_htmx\n"
+            "from htmx_worker_renderer import EmbeddedJinjaRenderer"
+            if plan.runtime == "workers"
+            else (
+                "from hayate_htmx import HtmxTemplates, JinjaRenderer, "
+                "append_htmx_vary, with_htmx\n"
+            )
+        ),
+        "htmx_renderer_setup": (
+            """
+    template_root = _ROOT / "templates"
+    renderer = JinjaRenderer(template_root) if template_root.is_dir() else EmbeddedJinjaRenderer()
+""".strip("\n")
+            if plan.runtime == "workers"
+            else '    renderer = JinjaRenderer(_ROOT / "templates")'
+        ),
         "runtime_readme": (
             (
                 "This project targets Cloudflare Python Workers and also runs unchanged "
@@ -415,6 +496,25 @@ simple = {{ limit = 60, period = 60 }}
         "wrangler_bindings": "\n\n".join(bindings),
         "wrangler_vars": "[vars]\n" + "\n".join(deploy_vars) if deploy_vars else "",
         "production_env": production_env,
+        "frontend_assets": (
+            """
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/", "/app", "/app/*", "/api/*", "/auth", "/auth/*"]
+""".strip()
+            if plan.runtime == "workers" and plan.frontend == "htmx"
+            else ""
+        ),
+        "pytest_markers": (
+            """
+markers = [
+  "browser: end-to-end smoke tests that require an installed Chromium browser",
+]
+""".strip()
+            if plan.frontend == "htmx"
+            else ""
+        ),
         "auth_headers": (
             '{"Cf-Access-Authenticated-User-Email": "developer@example.com"}'
             if plan.auth == "cloudflare-access"
@@ -439,6 +539,13 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
     if plan.frontend != "none":
         _render_tree(
             templates.joinpath("frontends", plan.frontend),
+            dest,
+            variables,
+            allow_overwrite=False,
+        )
+    if plan.frontend == "htmx" and plan.runtime == "workers":
+        _render_tree(
+            templates.joinpath("frontend_runtimes", "htmx-workers"),
             dest,
             variables,
             allow_overwrite=False,

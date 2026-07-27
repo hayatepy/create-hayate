@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta
+      name="htmx-config"
+      content='{"historyCacheSize":10,"includeIndicatorStyles":false}'
+    >
+    <title>Tasks · $project_name</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/assets/app.css">
+    <script
+      src="/assets/vendor/htmx-2.0.10.min.js"
+      integrity="sha384-H5SrcfygHmAuTDZphMHqBJLc3FhssKjG7w/CeCpFReSfwBWDTKpkzPP8c+cLsK+V"
+      crossorigin="anonymous"
+      defer
+    ></script>
+    <script src="/assets/app.js" defer></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="wordmark" href="/app">$project_name</a>
+      <nav aria-label="Application">
+        <a href="/api/health">API</a>
+        <a href="/auth">{{ principal.email or principal.subject }}</a>
+      </nav>
+    </header>
+
+    <main class="layout">
+      <section class="workspace" aria-labelledby="page-title">
+        <header class="workspace-heading">
+          <div>
+            <p class="kicker">Server-owned workspace</p>
+            <h1 id="page-title">Tasks</h1>
+          </div>
+          <span class="route-label">/app</span>
+        </header>
+
+        <form
+          id="todo-create"
+          class="create-form"
+          hx-post="/app/todos"
+          hx-target="#todo-list"
+          hx-swap="outerHTML"
+        >
+          <label for="new-todo">Add a task</label>
+          <div class="input-row">
+            <input
+              id="new-todo"
+              name="title"
+              maxlength="200"
+              aria-describedby="todo-form-errors"
+              autocomplete="off"
+              placeholder="What needs attention?"
+              required
+            >
+            <button type="submit">Add</button>
+          </div>
+          <div id="todo-form-errors" class="error-slot" aria-live="polite"></div>
+        </form>
+
+        <nav class="filters" aria-label="Task filters">
+          <a
+            href="/app?filter=all"
+            hx-get="/app?filter=all"
+            hx-target="#todo-list"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+          >All</a>
+          <a
+            href="/app?filter=open"
+            hx-get="/app?filter=open"
+            hx-target="#todo-list"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+          >Open</a>
+          <a
+            href="/app?filter=done"
+            hx-get="/app?filter=done"
+            hx-target="#todo-list"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+          >Completed</a>
+        </nav>
+
+        {% include "app/_list.html" %}
+      </section>
+
+      <aside class="context" aria-labelledby="stream-title">
+        <p class="kicker">SSE transport</p>
+        <h2 id="stream-title">Watch the response arrive.</h2>
+        <p>One same-origin stream, ready for progress or model output.</p>
+        <button id="stream-demo" class="secondary" type="button">Run stream</button>
+        <output id="stream-output" aria-live="polite"></output>
+      </aside>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+<article id="todo-{{ todo.id }}" class="todo-item editing">
+  <form
+    hx-patch="/app/todos/{{ todo.id }}"
+    hx-target="#todo-{{ todo.id }}"
+    hx-swap="outerHTML"
+  >
+    <label for="edit-title-{{ todo.id }}">Task title</label>
+    <div class="input-row">
+      <input
+        id="edit-title-{{ todo.id }}"
+        name="title"
+        value="{{ todo.title }}"
+        maxlength="200"
+        aria-describedby="edit-error-{{ todo.id }}"
+        required
+      >
+      <button type="submit">Save</button>
+      <button
+        class="secondary"
+        type="button"
+        hx-get="/app?filter=all"
+        hx-target="#todo-list"
+        hx-swap="outerHTML"
+      >Cancel</button>
+    </div>
+    <div id="edit-error-{{ todo.id }}" class="error-slot" aria-live="polite">
+      {% if error %}
+        <p class="form-error" role="alert">{{ error }}</p>
+      {% endif %}
+    </div>
+  </form>
+</article>

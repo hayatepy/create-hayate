@@ -30,6 +30,7 @@ def _node_version() -> str | None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+$workers_preflight
     version = _node_version()
     try:
         major = int(version.removeprefix("v").split(".", 1)[0]) if version else None

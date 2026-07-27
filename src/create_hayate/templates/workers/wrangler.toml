@@ -9,6 +9,8 @@ $wrangler_bindings
 
 $production_env
 
+$frontend_assets
+
 [python_modules]
 exclude = [
   "**/*.pyc",

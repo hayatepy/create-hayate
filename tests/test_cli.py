@@ -31,6 +31,7 @@ def test_generates_a_complete_project(tmp_path, monkeypatch, template):
         ".gitignore",
         "src/app.py",
         "src/storage.py",
+        "src/todo_domain.py",
         "src/generated_features.py",
         "tests/test_app.py",
     ):
@@ -389,7 +390,7 @@ def test_implicit_frontend_none_preserves_the_explicit_none_output(tmp_path, mon
     assert not (implicit / "frontend").exists()
 
 
-@pytest.mark.parametrize("frontend", sorted(set(FRONTENDS) - {"none"}))
+@pytest.mark.parametrize("frontend", ["astro", "react"])
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 def test_frontend_is_an_orthogonal_overlay(
     tmp_path,
@@ -426,16 +427,87 @@ def test_frontend_is_an_orthogonal_overlay(
 
 
 def test_frontend_source_trees_cannot_duplicate_backend_paths():
-    root = Path(cli.__file__).parent / "templates/frontends"
+    templates = Path(cli.__file__).parent / "templates"
+    backend_roots = [
+        templates / "base",
+        templates / "workers",
+        templates / "production",
+        *(templates / "features").iterdir(),
+        *(templates / "auth").iterdir(),
+    ]
+    backend_paths = {
+        path.relative_to(root)
+        for root in backend_roots
+        for path in root.rglob("*")
+        if path.is_file()
+    }
 
+    frontends = templates / "frontends"
     for frontend in set(FRONTENDS) - {"none"}:
-        paths = [
-            path.relative_to(root / frontend)
-            for path in (root / frontend).rglob("*")
+        paths = {
+            path.relative_to(frontends / frontend)
+            for path in (frontends / frontend).rglob("*")
             if path.is_file()
-        ]
+        }
         assert paths
-        assert all(path.parts[0] == "frontend" for path in paths)
+        assert paths.isdisjoint(backend_paths)
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_htmx_profile_generates_a_runnable_same_origin_application(
+    tmp_path,
+    monkeypatch,
+    template,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template=template,
+        extra_args=("--frontend", "htmx"),
+    )
+
+    for expected in (
+        "frontend/profile.toml",
+        "src/feature_htmx.py",
+        "templates/app/page.html",
+        "templates/auth/page.html",
+        "public/assets/app.css",
+        "public/assets/app.js",
+        "public/assets/vendor/htmx-2.0.10.min.js",
+        "public/_headers",
+        "tests/test_htmx.py",
+        "tests/browser/test_htmx_browser.py",
+    ):
+        assert (dest / expected).is_file(), expected
+
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"playwright>=1.54,<2"' in project
+    assert "register_htmx(app)" in (dest / "src/generated_features.py").read_text(encoding="utf-8")
+    application = (dest / "src/app.py").read_text(encoding="utf-8")
+    assert '@app.get("/api/health")' in application
+    assert '@app.get("/api/todos")' in application
+    profile = (dest / "frontend/profile.toml").read_text(encoding="utf-8")
+    assert "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de" in profile
+
+    wrangler = dest / "wrangler.toml"
+    if template == "api":
+        assert not wrangler.exists()
+        assert not (dest / "src/hayate_htmx").exists()
+        assert (
+            '"hayate-htmx @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@255de5bf3fc3f3f7665572940ffb5bfcef06d6b2"'
+        ) in project
+    else:
+        assert '"jinja2==3.1.6"' in project
+        assert "hayate-htmx @ git+" not in project
+        assert (dest / "src/hayate_htmx/__init__.py").is_file()
+        assert (dest / "src/htmx_worker_renderer.py").is_file()
+        assert (dest / "scripts/embed_htmx_templates.py").is_file()
+        launcher = (dest / "manage_workers.py").read_text(encoding="utf-8")
+        assert 'scripts/embed_htmx_templates.py"' in launcher
+        config = wrangler.read_text(encoding="utf-8")
+        assert '[assets]\ndirectory = "./public"\nbinding = "ASSETS"' in config
+        assert '"/app/*"' in config
 
 
 def test_frontend_overlay_collision_fails_without_overwriting(tmp_path):
