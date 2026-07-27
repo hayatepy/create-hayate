@@ -120,7 +120,7 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
         ("api", (), '"hayate>=0.12.1,<0.13"'),
         ("workers", (), '"hayate>=0.12.1,<0.13"'),
         ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
-        ("api", ("--with", "openapi"), '"hayate-openapi>=0.4.1,<0.5"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.4.2,<0.5"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )
