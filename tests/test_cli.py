@@ -485,10 +485,8 @@ def test_htmx_profile_generates_a_runnable_same_origin_application(
     if template == "api":
         assert not wrangler.exists()
         assert not (dest / "src/hayate_htmx").exists()
-        assert (
-            '"hayate-htmx @ git+https://github.com/hayatepy/'
-            'hayate-htmx.git@255de5bf3fc3f3f7665572940ffb5bfcef06d6b2"'
-        ) in project
+        assert '"hayate-htmx>=0.1,<0.2"' in project
+        assert "hayate-htmx @ git+" not in project
     else:
         assert '"jinja2==3.1.6"' in project
         assert "hayate-htmx @ git+" not in project
