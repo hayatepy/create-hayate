@@ -201,6 +201,7 @@ def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
     launcher = _load_workers_launcher(
         _generate(tmp_path, monkeypatch, template="workers"),
     )
+    monkeypatch.setenv("UV_PYTHON", "3.13.11")
     monkeypatch.setattr(launcher, "_node_version", lambda: "v24.18.0")
     monkeypatch.setattr(launcher.shutil, "which", lambda name: f"/bin/{name}")
     observed = {}
@@ -215,6 +216,7 @@ def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
     assert launcher.main(["dev"]) == 0
     environment = observed["environment"]
     assert observed["command"] == ["/bin/pywrangler", "dev"]
+    assert "UV_PYTHON" not in environment
     assert environment["CREATE_HAYATE_REAL_NODE"] == "/bin/node"
     shim_dir = Path(environment["PATH"].split(launcher.os.pathsep)[0])
     assert shim_dir.name.startswith("create-hayate-node-")

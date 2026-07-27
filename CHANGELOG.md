@@ -39,6 +39,8 @@ All notable changes to create-hayate are documented here.
   htmx, React, and Astro feature compositions.
 - Isolate browser smoke tests on dynamic ports so unrelated local servers
   cannot satisfy backend or frontend readiness probes.
+- Keep setup-uv's host `UV_PYTHON` override out of Pywrangler's nested Pyodide
+  environment so compiled Wasm dependencies resolve on clean CI runners.
 
 ## [0.6.0] - 2026-07-27
 

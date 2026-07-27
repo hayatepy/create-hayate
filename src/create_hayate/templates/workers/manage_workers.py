@@ -58,6 +58,11 @@ $workers_preflight
     with tempfile.TemporaryDirectory(prefix="create-hayate-node-") as raw_shim_dir:
         shim_dir = Path(raw_shim_dir)
         environment = os.environ.copy()
+        # setup-uv exports UV_PYTHON for the host project. Pywrangler creates a
+        # separate Pyodide venv and selects it through VIRTUAL_ENV; carrying the
+        # host override into nested uv calls makes compiled Wasm wheels appear
+        # incompatible.
+        environment.pop("UV_PYTHON", None)
         environment["CREATE_HAYATE_REAL_NODE"] = real_node
         environment["CREATE_HAYATE_NODE_SHIM_PYTHON"] = sys.executable
         environment["CREATE_HAYATE_NODE_SHIM_SCRIPT"] = str(
