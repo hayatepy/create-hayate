@@ -162,7 +162,7 @@ def _build_plan(
     frontend = args.frontend
     if template == "mcp":
         features.add("mcp")
-    if frontend == "react":
+    if frontend in {"react", "astro"}:
         features.add("openapi")
 
     production = args.preset == "production"
@@ -238,13 +238,13 @@ def _readme_sections(plan: ScaffoldPlan) -> dict[str, str]:
         feature_names.append(f"auth:{plan.auth}")
     if plan.production:
         feature_names.append("production-controls")
-    if plan.frontend in {"htmx", "react"}:
+    if plan.frontend != "none":
         feature_names.append(f"frontend:{plan.frontend}")
 
     quickstart = ["uv sync", "uv run pytest"]
     if sql and plan.runtime == "workers":
         quickstart.append("uv run python manage_workers.py d1 migrations apply DB --local")
-    if plan.frontend == "react":
+    if plan.frontend in {"react", "astro"}:
         quickstart.extend(
             [
                 "npm --prefix frontend ci",
@@ -282,12 +282,12 @@ The MCP 2025-11-25 endpoint is `/mcp`. Its `list_todos` tool reads the same
 identity context and SQL-backed storage as the HTTP API.
 """
     openapi_section = ""
-    if openapi and plan.frontend == "react":
+    if openapi and plan.frontend in {"react", "astro"}:
         openapi_section = """
 ## API schema
 
 OpenAPI 3.1 JSON is served at `/openapi.json`; Scalar is served at `/docs`.
-The React profile below owns the checked-in browser contract and generated
+The frontend profile below owns the checked-in browser contract and generated
 TypeScript types.
 """
     elif openapi:
@@ -387,6 +387,41 @@ non-file navigation requests such as `/about` to `index.html`. Do not rewrite
 API requests. The Workers template configures this split directly with
 Cloudflare Static Assets and SPA fallback.
 """
+    elif plan.frontend == "astro":
+        frontend_section = """
+## Astro content site
+
+The static Astro site lives in `frontend/`; Hayate remains the only backend
+and owns every `/api` route. Astro builds only local public content. The
+identity-scoped workspace is a Preact island that hydrates when visible and
+then requests Hayate from the browser with same-origin cookies.
+
+Start both development servers in separate terminals:
+
+```sh
+uv run uvicorn app:app --app-dir src --reload
+cd frontend && npm ci && npm run dev
+```
+
+Before committing an API change, refresh and verify the shared browser
+contract:
+
+```sh
+cd frontend
+npm run api:generate
+npm run api:check
+```
+
+`npm run typecheck`, `npm run build`, and `npm run test:e2e` verify the static
+site and its runtime island. Publish `frontend/dist` on the same origin and
+route `/api/*`, `/openapi.json`, and `/docs` to Hayate first. The Workers
+template configures API-first routing, trailing-slash static HTML, a generated
+404 page, caching, and security headers directly.
+
+Astro SSR is intentionally absent. If the project later needs a BFF, add the
+official adapter for the target host and opt specific pages into on-demand
+rendering; do not recreate Hayate business logic as Astro endpoints or actions.
+"""
     return {
         "feature_summary": ", ".join(feature_names) if feature_names else "base API",
         "quickstart_commands": "\n".join(quickstart),
@@ -479,7 +514,7 @@ simple = {{ limit = 60, period = 60 }}
     variables = {
         "project_name": name,
         "frontend": plan.frontend,
-        "api_prefix": "/api" if plan.frontend in {"htmx", "react"} else "",
+        "api_prefix": "/api" if plan.frontend in {"htmx", "react", "astro"} else "",
         "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),
@@ -567,7 +602,18 @@ not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/openapi.json", "/docs", "/mcp", "/mcp/*"]
 """.strip()
                 if plan.runtime == "workers" and plan.frontend == "react"
-                else ""
+                else (
+                    """
+[assets]
+directory = "./frontend/dist"
+binding = "ASSETS"
+not_found_handling = "404-page"
+html_handling = "auto-trailing-slash"
+run_worker_first = ["/api/*", "/openapi.json", "/docs", "/mcp", "/mcp/*"]
+""".strip()
+                    if plan.runtime == "workers" and plan.frontend == "astro"
+                    else ""
+                )
             )
         ),
         "pytest_markers": (
@@ -603,6 +649,13 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
     if plan.frontend != "none":
         _render_tree(
             templates.joinpath("frontends", plan.frontend),
+            dest,
+            variables,
+            allow_overwrite=False,
+        )
+    if plan.frontend in {"react", "astro"}:
+        _render_tree(
+            templates.joinpath("frontend_contracts", "openapi"),
             dest,
             variables,
             allow_overwrite=False,
@@ -707,12 +760,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"  cd {args.name}")
     print("  uv run pytest")
-    if plan.frontend == "react":
+    if plan.frontend in {"react", "astro"}:
         print("  npm --prefix frontend ci")
         if plan.runtime == "workers":
             print("  npm --prefix frontend run build")
     print(f"  {serve}")
-    if plan.frontend == "react" and plan.runtime == "api":
+    if plan.frontend in {"react", "astro"} and plan.runtime == "api":
         print("  # In another terminal:")
         print("  npm --prefix frontend run dev")
     return 0

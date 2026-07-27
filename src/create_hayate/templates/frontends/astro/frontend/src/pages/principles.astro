@@ -1,0 +1,40 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout
+  title="Principles"
+  description="The architecture principles behind the generated Astro and Hayate profile."
+>
+  <main class="principles-page">
+    <p class="section-label">System principles</p>
+    <h1>One contract.<br />Two moments.</h1>
+    <div class="principle-list">
+      <section>
+        <span>Build</span>
+        <h2>Public is durable.</h2>
+        <p>
+          Local editorial data becomes static HTML. A build never receives a
+          reader cookie and never snapshots identity-scoped Hayate responses.
+        </p>
+      </section>
+      <section>
+        <span>Browse</span>
+        <h2>Private is timely.</h2>
+        <p>
+          The visible island hydrates in the browser and sends same-origin
+          credentials directly to Hayate.
+        </p>
+      </section>
+      <section>
+        <span>Extend</span>
+        <h2>SSR is a choice.</h2>
+        <p>
+          Add an official adapter only when a BFF is genuinely needed. Keep
+          domain logic, validation, and storage in Hayate.
+        </p>
+      </section>
+    </div>
+    <a class="return-link" href="/">Return to field notes →</a>
+  </main>
+</BaseLayout>

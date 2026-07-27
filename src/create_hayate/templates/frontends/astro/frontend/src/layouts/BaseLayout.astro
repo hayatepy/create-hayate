@@ -1,0 +1,39 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#13242d" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✦</text></svg>" />
+    <title>{title} · $project_name</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <span aria-hidden="true">✦</span>
+        <strong>$project_name</strong>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="/">Field notes</a>
+        <a href="/principles/">Principles</a>
+      </nav>
+    </header>
+    <slot />
+    <footer class="site-footer">
+      <p>Public pages by Astro.</p>
+      <p>Private state by Hayate.</p>
+    </footer>
+  </body>
+</html>
