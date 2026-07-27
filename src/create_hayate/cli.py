@@ -35,7 +35,7 @@ PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
 _REGISTRATION_ORDER = ("access", "production", "mcp", "openapi", "htmx")
 _DEPENDENCIES = {
-    "openapi": "hayate-openapi>=0.6,<0.7",
+    "openapi": "hayate-openapi>=0.7,<0.8",
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }
@@ -551,7 +551,7 @@ rendering; do not recreate Hayate business logic as Astro endpoints or actions.
 
 def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
-    dependencies = ["hayate>=0.12.1,<0.13"]
+    dependencies = ["hayate>=0.13,<0.14"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
     if plan.frontend == "htmx" and plan.runtime == "workers":
         dependencies.append("jinja2==3.1.6")

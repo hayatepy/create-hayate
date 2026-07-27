@@ -36,9 +36,9 @@ name = "create-hayate-feature-matrix"
 version = "0"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-  "hayate>=0.12.1,<0.13",
+  "hayate>=0.13,<0.14",
   "hayate-mcp>=0.11,<0.12",
-  "hayate-openapi>=0.6,<0.7",
+  "hayate-openapi>=0.7,<0.8",
   "hayate-sql>=0.1,<0.2",
 ]
 """.lstrip(),
