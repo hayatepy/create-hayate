@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.8.0] - 2026-07-27
+
 ### Added
 
 - Add `--renderer jinja|htpy|jx|tdom` for htmx projects while preserving
