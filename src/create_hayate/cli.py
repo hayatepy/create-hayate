@@ -191,6 +191,7 @@ _RENAMES = {
     "gitignore": ".gitignore",
     "node-version": ".node-version",
     "nvmrc": ".nvmrc",
+    "pyproject.toml.template": "pyproject.toml",
 }
 _SKIP_DIRS = {"__pycache__"}
 _VERBATIM_SUFFIXES = (".min.js",)

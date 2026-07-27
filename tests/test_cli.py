@@ -64,6 +64,14 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
             assert not placeholders.intersection(text.split()), path
 
 
+def test_bundled_template_manifest_is_not_discoverable_as_a_real_project():
+    templates = Path(cli.__file__).parent / "templates"
+    base = templates / "base"
+
+    assert not list(templates.rglob("pyproject.toml"))
+    assert (base / "pyproject.toml.template").is_file()
+
+
 @pytest.mark.parametrize("template", ["workers", "mcp"])
 def test_workers_templates_wire_wrangler(tmp_path, monkeypatch, template):
     dest = _generate(tmp_path, monkeypatch, template=template)
