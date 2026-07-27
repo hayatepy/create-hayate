@@ -71,14 +71,20 @@ uvx create-hayate my-app \
 | Frontend | Ownership boundary |
 |---|---|
 | `none` (default) | Backend-only output; byte-for-byte compatibility path |
-| `htmx` | Hayate owns routing and server-rendered HTML |
+| `htmx` | Executable Hayate + htmx app at `/app`; shared JSON API at `/api` |
 | `react` | A separate SPA consumes an explicit Hayate API |
 | `astro` | A separate static/hybrid site consumes an explicit Hayate API |
 
 The frontend layer is composed last and is forbidden from overwriting backend
-files. The axis currently generates profile metadata and its isolated
-`frontend/` ownership boundary; executable profile contents land in the
-profile-specific follow-up changes. Non-`none` profiles are rejected with the
+files. `htmx` generates autoescaping Jinja templates, identity-scoped CRUD,
+validation fragments, history restoration, SSE, CSP/CSRF/cache defaults,
+browser smoke tests, and a checksum-verified self-hosted htmx 2.0.10 asset.
+ASGI serves that asset through Hayate; Workers uses Cloudflare Static Assets
+with the same same-origin URLs. Until `hayate-htmx` is published, ASGI pins
+its immutable release-gate Git commit and Workers bundles the same small
+source snapshot to work around Pywrangler's VCS-lock installation gap. React
+and Astro currently retain metadata-only ownership boundaries until their
+profile-specific changes land. Non-`none` profiles are rejected with the
 production preset until each profile has a reviewed production contract.
 
 ## Production preset
@@ -106,8 +112,8 @@ reads the same authenticated data through MCP.
   three feature components, and explicit auth/production components replace
   copied full-template combinations.
 - **Orthogonal frontend ownership.** Runtime and backend features compose
-  first; one frontend overlay may add only frontend-owned files and collisions
-  fail before a partial project can survive.
+  first; one frontend overlay may add only non-colliding files. The htmx
+  transport calls the same domain and storage functions as the JSON API.
 - **Portable application core.** `src/app.py` does not change between ASGI and
   Workers. Runtime resources enter through the Hayate request context.
 - **Feature-complete Workers default.** `WorkerEntrypoint` remains the default.

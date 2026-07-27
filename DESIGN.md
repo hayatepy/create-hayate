@@ -58,8 +58,12 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - 生成順はbase → runtime → feature → auth → production → frontend。既存componentは
   所有する境界だけを置換できるが、frontend overlayによるbackend file上書きは常に失敗する。
 - `none` は互換defaultであり、既存commandの生成物を変えない。
-- htmx/React/Astroは同じbackend templateを複製せず、`frontend/`以下のprofile-owned treeだけを
-  合成する。各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
+- frontendは同じbackend templateを複製せず、profile固有の非衝突fileだけを合成する。
+  htmxは`src/feature_htmx.py`、`templates/`、`public/`、profile/testを所有し、JSONとHTMLから
+  共通のtodo domain/storageを呼ぶ。React/Astroはprofile実装まで`frontend/` metadataだけを持つ。
+  htmx package公開前はASGIがrelease-gate commitをVCS固定し、Workersは同commitのsourceと、
+  deploy前にcanonical HTMLから再生成する`DictLoader` moduleを同梱する。
+  各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
 - `mcp`は互換shortcutであり、独立したfull templateを持たない。
 - `mcp`はhayate-authへ強制結合しない。`none`または既存Cloudflare Accessを明示する。
 
@@ -81,6 +85,8 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - base Workers / MCP / productionを実workerdで起動する。productionはD1 migration後、
   Access identity付きHTTP writeをMCPからreadし、同一data/identity境界を固定する。
 - golden appを実ASGIでも起動し、同じ`src/app.py`をSQLiteで検証する。
+- htmx profileは生成後のdirect request、実Chromium、実workerdを通し、page/fragment、
+  CRUD/validation/history/SSE、CSP/CSRF、Cloudflare Static Assetsを固定する。
 - 本体の新リリース時にテンプレートの hayate バージョンを上げる(Renovate 等は使わず
   リリースチェックリストに載せる。依存が hayate だけなので手動で足りる)。
 

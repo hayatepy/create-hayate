@@ -24,12 +24,13 @@ comfortably inside ten minutes on a normal development machine.
 
 ## HTTP API
 
-- `GET /health`
-- `GET /whoami`
-- `GET /todos`
-- `POST /todos` with `{"title": "ship it"}`
-- `GET /todos/:id`
-- `DELETE /todos/:id`
+- `GET $api_prefix/health`
+- `GET $api_prefix/whoami`
+- `GET $api_prefix/todos`
+- `POST $api_prefix/todos` with `{"title": "ship it"}`
+- `GET $api_prefix/todos/:id`
+- `PATCH $api_prefix/todos/:id`
+- `DELETE $api_prefix/todos/:id`
 
 $sql_readme
 
@@ -40,3 +41,5 @@ $openapi_readme
 $auth_readme
 
 $production_readme
+
+$frontend_readme

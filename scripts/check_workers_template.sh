@@ -14,6 +14,7 @@ ready_path="/"
 hayate_wheel="${HAYATE_ECOSYSTEM_WHEEL:-}"
 production_mode=false
 global_mode=false
+htmx_mode=false
 
 if [[ "${template}" == "production" || "${template}" == "production-global" ]]; then
   production_mode=true
@@ -21,8 +22,12 @@ fi
 if [[ "${template}" == "production-global" ]]; then
   global_mode=true
 fi
-if [[ "${template}" != "workers" && "${template}" != "mcp" && "${production_mode}" != true ]]; then
-  echo "expected workers, mcp, production, or production-global; got: ${template}" >&2
+if [[ "${template}" == "htmx" ]]; then
+  htmx_mode=true
+fi
+if [[ "${template}" != "workers" && "${template}" != "mcp" \
+  && "${htmx_mode}" != true && "${production_mode}" != true ]]; then
+  echo "expected workers, mcp, htmx, production, or production-global; got: ${template}" >&2
   exit 2
 fi
 if [[ -n "${hayate_wheel}" ]]; then
@@ -37,6 +42,9 @@ if [[ "${template}" == "workers" ]]; then
 elif [[ "${template}" == "mcp" ]]; then
   port=8794
   ready_path="/health"
+elif [[ "${htmx_mode}" == true ]]; then
+  port=8797
+  ready_path="/app"
 else
   port=8795
   if [[ "${global_mode}" == true ]]; then
@@ -81,6 +89,9 @@ node --version >/dev/null
       create_args+=(--workers-entrypoint global)
     fi
     "${repo_dir}/.venv/bin/create-hayate" "${create_args[@]}"
+  elif [[ "${htmx_mode}" == true ]]; then
+    "${repo_dir}/.venv/bin/create-hayate" \
+      demo-app --template workers --frontend htmx --no-input
   else
     "${repo_dir}/.venv/bin/create-hayate" demo-app --template "${template}" --no-input
   fi
@@ -185,7 +196,7 @@ grep -F "upload[${template}]=" "${log_file}" | tail -1
 canonicalized="$(
   curl --fail --silent --max-time 5 \
     "${auth_header[@]}" \
-    "http://127.0.0.1:${port}/canonicalize"
+    "http://127.0.0.1:${port}$([[ "${htmx_mode}" == true ]] && echo /api)/canonicalize"
 )"
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
@@ -209,6 +220,49 @@ if [[ "${template}" == "workers" ]]; then
     "${listed}"
   echo "contract[workers].create=${created}"
   echo "contract[workers].list=${listed}"
+  exit 0
+fi
+
+if [[ "${htmx_mode}" == true ]]; then
+  page="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/app")"
+  if [[ "${page}" != "<!doctype html>"* ]]; then
+    echo "htmx profile did not return a complete page" >&2
+    exit 1
+  fi
+  asset="$(
+    curl --fail --silent --max-time 5 \
+      "http://127.0.0.1:${port}/assets/vendor/htmx-2.0.10.min.js"
+  )"
+  if [[ "${asset}" != "var htmx="* ]]; then
+    echo "Cloudflare Static Assets did not serve the pinned htmx build" >&2
+    exit 1
+  fi
+  asset_headers="$(
+    curl --fail --silent --head --max-time 5 \
+      "http://127.0.0.1:${port}/assets/vendor/htmx-2.0.10.min.js"
+  )"
+  if ! grep -qiF "cache-control: public, max-age=31536000, immutable" \
+    <<<"${asset_headers}"; then
+    echo "pinned htmx asset is missing its immutable cache contract" >&2
+    exit 1
+  fi
+  curl --fail --silent --max-time 5 \
+    -X POST "http://127.0.0.1:${port}/app/todos" \
+    -H "origin: http://127.0.0.1:${port}" \
+    -H "hx-request: true" \
+    -H "content-type: application/x-www-form-urlencoded" \
+    --data "title=generated+htmx+worker" >/dev/null
+  listed="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/api/todos")"
+  uv run python -c \
+    'import json,sys; assert any(todo["title"] == "generated htmx worker" for todo in json.loads(sys.argv[1]))' \
+    "${listed}"
+  curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/auth" >/dev/null
+  stream="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/app/stream")"
+  if [[ "${stream}" != *"event: done"* ]]; then
+    echo "htmx profile SSE stream did not complete" >&2
+    exit 1
+  fi
+  echo "contract[htmx].list=${listed}"
   exit 0
 fi
 

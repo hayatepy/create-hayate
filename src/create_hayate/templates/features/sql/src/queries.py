@@ -149,15 +149,84 @@ async def list_todos(
     )
 
 
+TOGGLE_TODO_QUERY = Query(
+    name="toggle_todo",
+    sql=(
+        "UPDATE todos\nSET done = CASE done WHEN 0 THEN 1 ELSE 0 END\nWHERE owner = ?1 AND id = ?2"
+    ),
+    cardinality=Cardinality.EXEC,
+    parameters=(
+        Parameter("owner", "str"),
+        Parameter("todo_id", "str"),
+    ),
+    columns=(),
+    timeout_ms=None,
+)
+
+
+async def toggle_todo(
+    db: Database,
+    /,
+    *,
+    owner: str,
+    todo_id: str,
+) -> CommandResult:
+    return cast(
+        "CommandResult",
+        await db.run(
+            TOGGLE_TODO_QUERY,
+            owner=owner,
+            todo_id=todo_id,
+        ),
+    )
+
+
+UPDATE_TODO_QUERY = Query(
+    name="update_todo",
+    sql=("UPDATE todos\nSET title = ?3\nWHERE owner = ?1 AND id = ?2"),
+    cardinality=Cardinality.EXEC,
+    parameters=(
+        Parameter("owner", "str"),
+        Parameter("todo_id", "str"),
+        Parameter("title", "str"),
+    ),
+    columns=(),
+    timeout_ms=None,
+)
+
+
+async def update_todo(
+    db: Database,
+    /,
+    *,
+    owner: str,
+    todo_id: str,
+    title: str,
+) -> CommandResult:
+    return cast(
+        "CommandResult",
+        await db.run(
+            UPDATE_TODO_QUERY,
+            owner=owner,
+            todo_id=todo_id,
+            title=title,
+        ),
+    )
+
+
 __all__ = [
     "CREATE_TODO_QUERY",
     "DELETE_TODO_QUERY",
     "GET_TODO_QUERY",
     "LIST_TODOS_QUERY",
+    "TOGGLE_TODO_QUERY",
+    "UPDATE_TODO_QUERY",
     "GetTodoRow",
     "ListTodosRow",
     "create_todo",
     "delete_todo",
     "get_todo",
     "list_todos",
+    "toggle_todo",
+    "update_todo",
 ]

@@ -29,5 +29,19 @@ async def get_todo(_c: Context, owner: str, todo_id: str) -> Todo | None:
     return _TODOS.get((owner, todo_id))
 
 
+async def update_todo(_c: Context, owner: str, todo_id: str, title: str) -> Todo | None:
+    todo = _TODOS.get((owner, todo_id))
+    if todo is not None:
+        todo["title"] = title
+    return todo
+
+
+async def toggle_todo(_c: Context, owner: str, todo_id: str) -> Todo | None:
+    todo = _TODOS.get((owner, todo_id))
+    if todo is not None:
+        todo["done"] = not todo["done"]
+    return todo
+
+
 async def delete_todo(_c: Context, owner: str, todo_id: str) -> bool:
     return _TODOS.pop((owner, todo_id), None) is not None
