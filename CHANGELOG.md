@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.7.0] - 2026-07-27
+
 ### Added
 
 - Generate a pinned Node 24, Vite, React Router, and TypeScript SPA with
