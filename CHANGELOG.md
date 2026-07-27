@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.6.0] - 2026-07-27
+
 ### Added
 
 - Add an independent `--frontend none|htmx|react|astro` generation-plan axis
@@ -24,11 +26,22 @@ All notable changes to create-hayate are documented here.
 - Regenerate a deterministic Jinja `DictLoader` module from canonical HTML
   before Workers commands, retaining editable file templates locally without
   relying on unsupported arbitrary files in the Python module bundle.
+- Generate typed UUID path and response contracts from `hayate-openapi` 0.5
+  for OpenAPI-enabled TODO APIs, while preserving the dependency-light
+  Context-first implementation in minimal projects.
 
 ### Changed
 
 - Add shared todo title normalization and update/toggle storage operations so
   API, htmx, in-memory, SQLite, and D1 compositions use one domain contract.
+- Split TODO API registration into an overlay boundary so optional features
+  can improve transport contracts without duplicating the application shell.
+
+### Fixed
+
+- Keep the generated Chromium smoke strict while accepting the one
+  `net::ERR_ABORTED` signal produced when the completed SSE demo deliberately
+  closes its `EventSource`.
 
 ## [0.5.1] - 2026-07-27
 

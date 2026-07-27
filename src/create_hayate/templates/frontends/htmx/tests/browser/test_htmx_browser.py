@@ -127,7 +127,11 @@ async def test_navigation_crud_validation_history_and_stream(live_url: str):
 
         assert console_errors == []
         assert page_errors == []
-        assert request_failures == []
+        # Chromium reports a client-initiated EventSource.close() as
+        # net::ERR_ABORTED on some versions. The completed output above proves
+        # the terminal event arrived; permit only that one deliberate close.
+        stream_abort = f"GET {live_url}/app/stream: net::ERR_ABORTED"
+        assert request_failures in ([], [stream_abort])
         assert all(url.startswith(live_url) or url.startswith("data:") for url in request_urls)
         assert any(url.endswith("/assets/vendor/htmx-2.0.10.min.js") for url in request_urls)
 

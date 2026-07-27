@@ -48,7 +48,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | base | TODO API、identity/storage protocol、pytest | 全生成物 |
 | `api` runtime | ASGI起動 | 実ASGI HTTP |
 | `workers` runtime | wrangler/Pywrangler。既定は `WorkerEntrypoint` | 実workerd |
-| `openapi` | OpenAPI 3.1.1、Scalar、TypeScript export | schema/型生成 |
+| `openapi` | typed path/response contract、OpenAPI 3.1.1、Scalar、TypeScript export | runtime/schema/型生成 |
 | `mcp` | 2025-11-25、request context、storage共有 | ASGI/workerd |
 | `sql` | migration、query contract、typed facade、SQLite/D1 | compile/実D1 |
 | `cloudflare-access` | local明示identity、本番JWT/JWKS検証 | auth境界 |
@@ -73,6 +73,9 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
   npm の `create-*` 慣習を Python に持ち込み、`uvx create-hayate` を唯一の推奨 UX とする
   (pipx / pip でも動く通常のパッケージ)。
 - componentは `importlib.resources` で同梱ファイルツリーを決定的順序でoverlayする。
+- baseの `todo_api.py` は依存の軽いContext-first実装を持ち、OpenAPI componentだけが
+  typed path/response版へ置換する。入力文字列の長さ制約はtyped stdlib surfaceが
+  表現可能になるまでraw JSON Schemaを共用し、runtimeと文書の精度を落とさない。
 - **却下**: cookiecutter / copier 依存 — ゼロ依存が崩れ、uvx 起動が重くなる。
   この規模に Jinja は要らない。
 - **却下**: テンプレートのリモート取得(GitHub から fetch)— サプライチェーンリスクと

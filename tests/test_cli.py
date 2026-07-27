@@ -31,6 +31,7 @@ def test_generates_a_complete_project(tmp_path, monkeypatch, template):
         ".gitignore",
         "src/app.py",
         "src/storage.py",
+        "src/todo_api.py",
         "src/todo_domain.py",
         "src/generated_features.py",
         "tests/test_app.py",
@@ -121,7 +122,7 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
         ("api", (), '"hayate>=0.12.1,<0.13"'),
         ("workers", (), '"hayate>=0.12.1,<0.13"'),
         ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
-        ("api", ("--with", "openapi"), '"hayate-openapi>=0.4.2,<0.5"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.5,<0.6"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )
@@ -134,6 +135,26 @@ def test_composed_projects_pin_released_compatibility_lines(
 ):
     dest = _generate(tmp_path, monkeypatch, template=template, extra_args=extra_args)
     assert dependency in (dest / "pyproject.toml").read_text(encoding="utf-8")
+
+
+def test_openapi_feature_overlays_typed_todo_contracts(tmp_path, monkeypatch):
+    minimal = _generate(tmp_path, monkeypatch, name="minimal", template="api")
+    typed = _generate(
+        tmp_path,
+        monkeypatch,
+        name="typed",
+        template="api",
+        extra_args=("--with", "openapi"),
+    )
+
+    minimal_api = (minimal / "src/todo_api.py").read_text(encoding="utf-8")
+    typed_api = (typed / "src/todo_api.py").read_text(encoding="utf-8")
+    assert "def _validated_todo_id" in minimal_api
+    assert "from hayate_openapi import Path, StdlibProvider, endpoint, validated" in typed_api
+    assert "providers=_PROVIDERS" in typed_api
+    assert 'Path(alias="id")' in typed_api
+    assert "-> TodoResponse" in typed_api
+    assert "def _validated_todo_id" not in typed_api
 
 
 def _load_workers_launcher(dest):
@@ -482,10 +503,12 @@ def test_htmx_profile_generates_a_runnable_same_origin_application(
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
     assert '"playwright>=1.54,<2"' in project
-    assert "register_htmx(app)" in (dest / "src/generated_features.py").read_text(encoding="utf-8")
+    registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
+    assert "register_htmx(app)" in registrations
     application = (dest / "src/app.py").read_text(encoding="utf-8")
+    todo_api = (dest / "src/todo_api.py").read_text(encoding="utf-8")
     assert '@app.get("/api/health")' in application
-    assert '@app.get("/api/todos")' in application
+    assert '@app.get("/api/todos")' in todo_api
     profile = (dest / "frontend/profile.toml").read_text(encoding="utf-8")
     assert "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de" in profile
 
