@@ -2,6 +2,17 @@
 
 All notable changes to create-hayate are documented here.
 
+## [0.5.1] - 2026-07-27
+
+### Fixed
+
+- Require hayate-openapi 0.4.2 so generated raw JSON Schema contracts are
+  enforced at runtime as well as projected into OpenAPI without initializing
+  the schema compiler in forbidden Workers global scope.
+- Reject malformed TODO UUID route parameters in the shared application even
+  without the OpenAPI feature, keeping the base scaffold lightweight while
+  preserving the same public behavior across compositions.
+
 ## [0.5.0] - 2026-07-27
 
 ### Changed

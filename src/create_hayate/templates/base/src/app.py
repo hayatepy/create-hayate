@@ -1,5 +1,7 @@
 """$project_name: one Hayate application core for every supported runtime."""
 
+from uuid import UUID
+
 from hayate import URL, Context, Hayate, HTTPException
 
 from contracts import describe, validated
@@ -32,6 +34,23 @@ TODO_ID_SCHEMA = {
     "required": ["id"],
     "additionalProperties": False,
 }
+
+
+def _validated_todo_id(c: Context) -> str:
+    value = c.req.valid("param").get("id")
+    try:
+        if not isinstance(value, str):
+            raise ValueError
+        UUID(value)
+        if not all(value[position] == "-" for position in (8, 13, 18, 23)):
+            raise ValueError
+    except (ValueError, IndexError):
+        raise HTTPException(
+            400,
+            title="Validation failed",
+            detail="$$.id: value must be a hyphenated UUID",
+        ) from None
+    return value
 
 
 @app.get("/health")
@@ -87,7 +106,7 @@ async def todos_create(c: Context):
     operation_id="getTodo",
 )
 async def todos_show(c: Context):
-    todo = await get_todo(c, subject(c), c.req.valid("param")["id"])
+    todo = await get_todo(c, subject(c), _validated_todo_id(c))
     if todo is None:
         raise HTTPException(404, title="Todo not found")
     return c.json(todo)
@@ -96,7 +115,7 @@ async def todos_show(c: Context):
 @app.delete("/todos/:id", validated("param", TODO_ID_SCHEMA))
 @describe(summary="Delete a todo", status=204, responses={404: None}, operation_id="deleteTodo")
 async def todos_delete(c: Context):
-    if not await delete_todo(c, subject(c), c.req.valid("param")["id"]):
+    if not await delete_todo(c, subject(c), _validated_todo_id(c)):
         raise HTTPException(404, title="Todo not found")
     return c.body(None, status=204)
 
