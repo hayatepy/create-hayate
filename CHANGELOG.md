@@ -29,6 +29,13 @@ All notable changes to create-hayate are documented here.
 - Generate typed UUID path and response contracts from `hayate-openapi` 0.5
   for OpenAPI-enabled TODO APIs, while preserving the dependency-light
   Context-first implementation in minimal projects.
+- Generate a pinned Node 24, Vite, React Router, and TypeScript SPA with
+  `openapi-fetch`, responsive starter UI, same-origin credential transport,
+  production security headers, and no handwritten API models.
+- Export the React profile's OpenAPI document and TypeScript types from the
+  generated Hayate application, fail on artifact drift, and exercise
+  `npm ci`, typecheck, build, dependency audit, Chromium CRUD/deep links, and
+  Cloudflare Static Assets through real workerd.
 
 ### Changed
 

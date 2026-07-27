@@ -60,7 +60,8 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - `none` は互換defaultであり、既存commandの生成物を変えない。
 - frontendは同じbackend templateを複製せず、profile固有の非衝突fileだけを合成する。
   htmxは`src/feature_htmx.py`、`templates/`、`public/`、profile/testを所有し、JSONとHTMLから
-  共通のtodo domain/storageを呼ぶ。React/Astroはprofile実装まで`frontend/` metadataだけを持つ。
+  共通のtodo domain/storageを呼ぶ。Reactは`frontend/`内のVite SPAと生成OpenAPI型だけを所有し、
+  Hayateの`/api`を唯一のbackend contractとする。Astroはprofile実装までmetadataだけを持つ。
   htmx package公開前はASGIがrelease-gate commitをVCS固定し、Workersは同commitのsourceと、
   deploy前にcanonical HTMLから再生成する`DictLoader` moduleを同梱する。
   各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
@@ -90,6 +91,8 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - golden appを実ASGIでも起動し、同じ`src/app.py`をSQLiteで検証する。
 - htmx profileは生成後のdirect request、実Chromium、実workerdを通し、page/fragment、
   CRUD/validation/history/SSE、CSP/CSRF、Cloudflare Static Assetsを固定する。
+- React profileは生成後のOpenAPI drift、TypeScript、Vite build、実Chromium CRUD/deep-link、
+  npm audit、実workerdのAPI-first routing/SPA fallback/security headerを固定する。
 - 本体の新リリース時にテンプレートの hayate バージョンを上げる(Renovate 等は使わず
   リリースチェックリストに載せる。依存が hayate だけなので手動で足りる)。
 

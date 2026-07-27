@@ -15,6 +15,7 @@ hayate_wheel="${HAYATE_ECOSYSTEM_WHEEL:-}"
 production_mode=false
 global_mode=false
 htmx_mode=false
+react_mode=false
 
 if [[ "${template}" == "production" || "${template}" == "production-global" ]]; then
   production_mode=true
@@ -25,9 +26,13 @@ fi
 if [[ "${template}" == "htmx" ]]; then
   htmx_mode=true
 fi
+if [[ "${template}" == "react" ]]; then
+  react_mode=true
+fi
 if [[ "${template}" != "workers" && "${template}" != "mcp" \
-  && "${htmx_mode}" != true && "${production_mode}" != true ]]; then
-  echo "expected workers, mcp, htmx, production, or production-global; got: ${template}" >&2
+  && "${htmx_mode}" != true && "${react_mode}" != true \
+  && "${production_mode}" != true ]]; then
+  echo "expected workers, mcp, htmx, react, production, or production-global; got: ${template}" >&2
   exit 2
 fi
 if [[ -n "${hayate_wheel}" ]]; then
@@ -45,6 +50,9 @@ elif [[ "${template}" == "mcp" ]]; then
 elif [[ "${htmx_mode}" == true ]]; then
   port=8797
   ready_path="/app"
+elif [[ "${react_mode}" == true ]]; then
+  port=8798
+  ready_path="/"
 else
   port=8795
   if [[ "${global_mode}" == true ]]; then
@@ -92,11 +100,22 @@ node --version >/dev/null
   elif [[ "${htmx_mode}" == true ]]; then
     "${repo_dir}/.venv/bin/create-hayate" \
       demo-app --template workers --frontend htmx --no-input
+  elif [[ "${react_mode}" == true ]]; then
+    "${repo_dir}/.venv/bin/create-hayate" \
+      demo-app --template workers --frontend react --no-input
   else
     "${repo_dir}/.venv/bin/create-hayate" demo-app --template "${template}" --no-input
   fi
   cd demo-app
   uv sync
+  if [[ "${react_mode}" == true ]]; then
+    (
+      cd frontend
+      npm ci --ignore-scripts
+      npm run build
+      npm audit --audit-level=high
+    )
+  fi
   if [[ -n "${hayate_wheel}" ]]; then
     # Test the generated CPython app against the same unpublished core wheel.
     uv pip install \
@@ -196,7 +215,9 @@ grep -F "upload[${template}]=" "${log_file}" | tail -1
 canonicalized="$(
   curl --fail --silent --max-time 5 \
     "${auth_header[@]}" \
-    "http://127.0.0.1:${port}$([[ "${htmx_mode}" == true ]] && echo /api)/canonicalize"
+    "http://127.0.0.1:${port}$(
+      [[ "${htmx_mode}" == true || "${react_mode}" == true ]] && echo /api
+    )/canonicalize"
 )"
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
@@ -263,6 +284,47 @@ if [[ "${htmx_mode}" == true ]]; then
     exit 1
   fi
   echo "contract[htmx].list=${listed}"
+  exit 0
+fi
+
+if [[ "${react_mode}" == true ]]; then
+  page="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/")"
+  if [[ "${page}" != "<!doctype html>"* || "${page}" != *"<div id=\"root\"></div>"* ]]; then
+    echo "React profile did not return its built SPA shell" >&2
+    exit 1
+  fi
+  page_headers="$(curl --fail --silent --head --max-time 5 "http://127.0.0.1:${port}/")"
+  if ! grep -qiF "content-security-policy: default-src 'self'" <<<"${page_headers}"; then
+    echo "React profile SPA shell is missing its static security headers" >&2
+    exit 1
+  fi
+  deep_link="$(
+    curl --fail --silent --max-time 5 \
+      -H "Sec-Fetch-Mode: navigate" \
+      "http://127.0.0.1:${port}/about"
+  )"
+  if [[ "${deep_link}" != *"<div id=\"root\"></div>"* ]]; then
+    echo "React profile did not apply SPA fallback to a navigation request" >&2
+    exit 1
+  fi
+  created="$(
+    curl --fail --silent --max-time 5 \
+      -X POST "http://127.0.0.1:${port}/api/todos" \
+      -H "content-type: application/json" \
+      --data '{"title":"generated React worker"}'
+  )"
+  uv run python -c \
+    'import json,sys; assert json.loads(sys.argv[1])["title"] == "generated React worker"' \
+    "${created}"
+  listed="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/api/todos")"
+  uv run python -c \
+    'import json,sys; assert any(todo["title"] == "generated React worker" for todo in json.loads(sys.argv[1]))' \
+    "${listed}"
+  openapi="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/openapi.json")"
+  uv run python -c \
+    'import json,sys; document=json.loads(sys.argv[1]); assert "/api/todos" in document["paths"]' \
+    "${openapi}"
+  echo "contract[react].list=${listed}"
   exit 0
 fi
 
