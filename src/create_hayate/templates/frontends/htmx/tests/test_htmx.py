@@ -21,7 +21,7 @@ FORM_HEADERS = {
 async def test_page_fragment_crud_validation_and_shared_api():
     page = await app.request("/app", headers=AUTH_HEADERS)
     assert page.status == 200
-    assert (await page.text()).startswith("<!doctype html>")
+    assert $page_doctype_check
     assert page.headers.get("content-security-policy") is not None
     assert page.headers.get("cache-control") == "private, no-store"
 
@@ -111,7 +111,7 @@ async def test_history_identity_assets_and_stream():
             "HX-History-Restore-Request": "true",
         },
     )
-    assert (await restored.text()).startswith("<!doctype html>")
+    assert $restored_doctype_check
 
     identity = await app.request("/auth", headers=AUTH_HEADERS)
     assert identity.status == 200

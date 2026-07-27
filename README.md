@@ -92,13 +92,26 @@ uvx create-hayate my-app \
 | `astro` | Static Astro site with a small Preact runtime island and generated API types |
 
 The frontend layer is composed last and is forbidden from overwriting backend
-files. `htmx` generates autoescaping Jinja templates, identity-scoped CRUD,
-validation fragments, history restoration, SSE, CSP/CSRF/cache defaults,
-browser smoke tests, and a checksum-verified self-hosted htmx 2.0.10 asset.
-ASGI serves that asset through Hayate; Workers uses Cloudflare Static Assets
-with the same same-origin URLs. Until `hayate-htmx` is published, ASGI pins
-its immutable release-gate Git commit and Workers bundles the same small
-source snapshot to work around Pywrangler's VCS-lock installation gap.
+files. `htmx` generates identity-scoped CRUD, validation fragments, history
+restoration, SSE, CSP/CSRF/cache defaults, browser smoke tests, and a
+checksum-verified self-hosted htmx 2.0.10 asset. ASGI serves that asset through
+Hayate; Workers uses Cloudflare Static Assets with the same same-origin URLs.
+Jinja2 remains the byte-for-byte compatibility default:
+
+```sh
+uvx create-hayate my-app \
+  --template api \
+  --frontend htmx \
+  --renderer htpy
+```
+
+`--renderer htpy` generates native typed-Python components for ASGI or
+Workers. `jx` generates Jinja-backed typed components on ASGI, while
+experimental `tdom` uses Python 3.14 t-string components on ASGI. All renderer
+profiles preserve the same routes, identity-scoped CRUD, htmx fragments,
+security headers, and browser behavior. Explicit renderer projects record
+their runtime and Python contract in `frontend/renderer.toml` and add strict
+mypy checks at the renderer boundary.
 
 `react` generates a pinned Node 24/Vite/React Router application in
 `frontend/`. It enables Hayate OpenAPI automatically, keeps JSON below `/api`,
@@ -123,9 +136,10 @@ extension rather than part of the initial runtime.
 Non-`none` profiles are rejected with the production preset until each profile
 has a reviewed production contract. The data-backed
 [frontend compatibility matrix](docs/FRONTEND_COMPATIBILITY.md) is also the
-CLI allow-list: pull requests exercise six boundary compositions from a built
-wheel, while weekly and manual runs cover all 112 unique supported
-runtime/frontend/auth/feature/entrypoint compositions in deterministic shards.
+CLI allow-list: pull requests exercise ten boundary compositions from a built
+wheel, including all explicit htmx renderers, while weekly and manual runs
+retain all 112 unique supported runtime/frontend/auth/feature/entrypoint
+compositions in deterministic shards.
 Each run publishes phase-level commands, exact tool versions, and the wheel
 digest as JSON evidence.
 
@@ -190,7 +204,7 @@ reads the same authenticated data through MCP.
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.10.x).** Generated projects pin released compatibility
+> **Status: alpha (0.11.x).** Generated projects pin released compatibility
 > lines. Public APIs may still move before 1.0.
 
 ## License

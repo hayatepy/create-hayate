@@ -1,0 +1,5 @@
+renderer = "tdom"
+server_package = "hayate-htmx[tdom]>=0.2,<0.3"
+python = "3.14+"
+runtime = "api"
+status = "experimental"

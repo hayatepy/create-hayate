@@ -1,0 +1,26 @@
+{#import "app/item.jx" as TodoItem #}
+{#def current_filter, todos #}
+<section id="todo-list" class="todo-list" aria-live="polite" data-filter="{{ current_filter }}">
+  <header class="list-heading">
+    <h2>
+      {% if current_filter == "done" %}
+        Completed
+      {% elif current_filter == "open" %}
+        Open tasks
+      {% else %}
+        All tasks
+      {% endif %}
+    </h2>
+    <span>{{ todos | length }}</span>
+  </header>
+
+  {% if todos %}
+    <div class="todo-items">
+      {% for todo in todos %}
+        <TodoItem current_filter={{ current_filter }} todo={{ todo }} />
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty-state">No tasks in this view.</p>
+  {% endif %}
+</section>

@@ -9,6 +9,7 @@
 - `uvx create-hayate my-app --template api|workers|mcp` → テスト付きの動くプロジェクト一式を生成。
 - `--with admin,openapi,mcp,sql` と `--auth` は共通baseへ小さなcomponentを合成する。
 - `--frontend none|htmx|react|astro` はruntime/feature/authと独立した最後の合成軸。
+- htmxでは`--renderer jinja|htpy|jx|tdom`を選べ、Jinjaを互換defaultとする。
 - `--template workers --preset production` は実運用導線を固定したgolden composition。
 - **ゼロ依存**(argparse + shutil + string.Template のみ)。テンプレートはパッケージ内に同梱。
 - 生成物は本体 examples/ と同水準の「テスト付き最小アプリ」。**CI が全テンプレートを
@@ -56,8 +57,9 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | `cloudflare-access` | local明示identity、本番JWT/JWKS検証 | auth境界 |
 | `production` | CORS、header、body limit、rate limit、checklist | golden app |
 | `frontend` | `none` / htmx / React / Astro の独立ownership境界 | overlay衝突検査 |
+| `renderer` | Jinja / htpy / Jx / tdom のhtmx view境界 | strict型検査 + Chromium/workerd |
 
-- 生成順はbase → runtime → feature → auth → production → frontend。既存componentは
+- 生成順はbase → runtime → feature → auth → production → frontend → renderer。既存componentは
   所有する境界だけを置換できるが、frontend overlayによるbackend file上書きは常に失敗する。
 - observabilityは選択式componentにせず、全生成物のmiddleware登録順で常に最外周へ置く。
   `X-Request-ID`は保守的な文字集合と長さで検証し、access eventはmethod/path/final status/
@@ -74,6 +76,9 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
   追加する将来のBFF拡張であり、初期runtimeには含めない。
   htmx package公開前はASGIがrelease-gate commitをVCS固定し、Workersは同commitのsourceと、
   deploy前にcanonical HTMLから再生成する`DictLoader` moduleを同梱する。
+  Jinjaはこの生成物をbyte-for-byteで維持する互換defaultとする。htpyはASGI/Workers、
+  JxはASGI、tdomはPython 3.14 ASGIのexperimental contractとし、renderer固有viewだけを
+  独立overlayで追加する。route・identity・CRUD・CSRF/CSP・SSEは共通componentに残す。
   各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
 - `mcp`は互換shortcutであり、独立したfull templateを持たない。
 - `mcp`はhayate-authへ強制結合しない。`none`または既存Cloudflare Accessを明示する。
@@ -121,9 +126,10 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
   実Chromium CRUD/deep-link/custom 404、npm audit、実workerdのAPI-first routingと
   Cloudflare Static Assetsを固定する。
 - frontend compatibilityはpackaged JSONをCLI allow-listとCIの単一source of truthにする。
-  重複するimplicit featureを除いた112構成を、PRではwheel由来の6 boundary case、週次/手動では
-  12 shardのfull matrixとして検証する。各caseはcomposition/phase/command/toolchain/wheel digest/
-  timingをJSON evidenceに残し、失敗名だけで構成とphaseを特定できるようにする。
+  重複するimplicit featureを除いた112構成は維持し、PRではrenderer 4件を加えたwheel由来の
+  10 boundary case、週次/手動では12 shardのfull matrixとして検証する。各caseは
+  composition/renderer/phase/command/toolchain/wheel digest/timingをJSON evidenceに残し、
+  失敗名だけで構成とphaseを特定できるようにする。
 - 本体の新リリース時にテンプレートの hayate バージョンを上げる(Renovate 等は使わず
   リリースチェックリストに載せる。依存が hayate だけなので手動で足りる)。
 

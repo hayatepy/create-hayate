@@ -35,6 +35,7 @@ class FrontendCase:
     entrypoint: str
     browser: bool
     workerd: bool
+    renderer: str = "jinja"
 
 
 def _mapping(value: object, field: str) -> dict[str, object]:
@@ -49,6 +50,12 @@ def _strings(value: object, field: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _objects(value: object, field: str) -> tuple[object, ...]:
+    if not isinstance(value, list):
+        raise ValueError(f"{field} must be an array")
+    return tuple(value)
+
+
 def _string(value: object, field: str) -> str:
     if not isinstance(value, str):
         raise ValueError(f"{field} must be a string")
@@ -58,6 +65,12 @@ def _string(value: object, field: str) -> str:
 def _integer(value: object, field: str) -> int:
     if not isinstance(value, int):
         raise ValueError(f"{field} must be an integer")
+    return value
+
+
+def _boolean(value: object, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be a boolean")
     return value
 
 
@@ -97,6 +110,33 @@ FRONTEND_PROFILES = {
     for name, raw_data in _mapping(_RAW.get("profiles"), "profiles").items()
     for data in (_mapping(raw_data, f"profiles.{name}"),)
 }
+
+
+def _renderer_case(raw_case: object, index: int) -> FrontendCase:
+    field = f"renderer_cases[{index}]"
+    data = _mapping(raw_case, field)
+    template = _string(data.get("template"), f"{field}.template")
+    requested = _strings(data.get("requested_features"), f"{field}.requested_features")
+    implicit = ("mcp",) if template == "mcp" else ()
+    return FrontendCase(
+        id=_string(data.get("id"), f"{field}.id"),
+        frontend="htmx",
+        template=template,
+        runtime="api" if template == "api" else "workers",
+        requested_features=requested,
+        effective_features=tuple(sorted({*requested, *implicit})),
+        auth=_string(data.get("auth"), f"{field}.auth"),
+        entrypoint=_string(data.get("entrypoint"), f"{field}.entrypoint"),
+        browser=_boolean(data.get("browser"), f"{field}.browser"),
+        workerd=_boolean(data.get("workerd"), f"{field}.workerd"),
+        renderer=_string(data.get("renderer"), f"{field}.renderer"),
+    )
+
+
+RENDERER_CASES = tuple(
+    _renderer_case(raw_case, index)
+    for index, raw_case in enumerate(_objects(_RAW.get("renderer_cases"), "renderer_cases"))
+)
 SMOKE_IDS = _strings(_RAW.get("smoke_ids"), "smoke_ids")
 BROWSER_IDS = frozenset(_strings(_RAW.get("browser_ids"), "browser_ids"))
 WORKERD_IDS = frozenset(_strings(_RAW.get("workerd_ids"), "workerd_ids"))
@@ -161,6 +201,7 @@ def supported_frontend_cases() -> tuple[FrontendCase, ...]:
                             entrypoint=entrypoint,
                             browser=identifier in BROWSER_IDS,
                             workerd=identifier in WORKERD_IDS,
+                            renderer="jinja" if frontend == "htmx" else "none",
                         )
                     )
     return tuple(cases)
@@ -194,5 +235,11 @@ def supports_frontend_plan(
 
 
 def smoke_frontend_cases() -> tuple[FrontendCase, ...]:
-    by_id = {case.id: case for case in SUPPORTED_FRONTEND_CASES}
+    by_id = {
+        case.id: case
+        for case in (
+            *SUPPORTED_FRONTEND_CASES,
+            *RENDERER_CASES,
+        )
+    }
     return tuple(by_id[identifier] for identifier in SMOKE_IDS)
