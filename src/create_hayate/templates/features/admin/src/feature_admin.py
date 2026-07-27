@@ -185,11 +185,11 @@ def _audit_factory(context: Context):
             occurred_at=event.occurred_at.isoformat(),
             phase=event.phase,
             action=event.action,
-            operation=event.operation,
+            operation=event.operation or "",
             resource=event.resource or "site",
-            object_id=event.object_id,
-            actor_id=event.actor_id,
-            error_type=event.error_type,
+            object_id=event.object_id or "",
+            actor_id=event.actor_id or "",
+            error_type=event.error_type or "",
         )
 
     return audit
@@ -225,11 +225,11 @@ def _history_factory(context: Context):
                 occurred_at=datetime.fromisoformat(row["occurred_at"]),
                 phase=cast(AuditPhase, row["phase"]),
                 action=cast(AdminAction, row["action"]),
-                operation=row["operation"],
+                operation=row["operation"] or None,
                 resource=row["resource"],
-                object_id=row["object_id"],
-                actor_id=row["actor_id"],
-                error_type=row["error_type"],
+                object_id=row["object_id"] or None,
+                actor_id=row["actor_id"] or None,
+                error_type=row["error_type"] or None,
             )
             for row in rows
         )

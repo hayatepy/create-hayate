@@ -29,11 +29,12 @@ if [[ "${template}" == "production" || "${template}" == "production-admin" \
   || "${template}" == "production-global" ]]; then
   production_mode=true
 fi
-if [[ "${template}" == "admin" || "${template}" == "production-admin" ]]; then
+if [[ "${template}" == "admin" || "${template}" == "admin-global" \
+  || "${template}" == "production-admin" ]]; then
   admin_mode=true
   sql_mode=true
 fi
-if [[ "${template}" == "production-global" ]]; then
+if [[ "${template}" == "production-global" || "${template}" == "admin-global" ]]; then
   global_mode=true
 fi
 if [[ "${template}" == "htmx" ]]; then
@@ -51,7 +52,7 @@ fi
 if [[ "${template}" != "workers" && "${template}" != "mcp" \
   && "${htmx_mode}" != true && "${react_mode}" != true && "${astro_mode}" != true \
   && "${admin_mode}" != true && "${production_mode}" != true ]]; then
-  echo "expected workers, mcp, admin, htmx, react, astro, production, production-admin, or production-global; got: ${template}" >&2
+  echo "expected workers, mcp, admin, admin-global, htmx, react, astro, production, production-admin, or production-global; got: ${template}" >&2
   exit 2
 fi
 if [[ -n "${hayate_wheel}" ]]; then
@@ -81,6 +82,9 @@ if [[ "${matrix_entrypoint}" != "class" && "${matrix_entrypoint}" != "global" ]]
 fi
 if [[ "${admin_mode}" == true ]]; then
   port=8800
+  if [[ "${global_mode}" == true ]]; then
+    port=8801
+  fi
   ready_path="/admin"
 elif [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
@@ -175,7 +179,9 @@ node --version >/dev/null
     if [[ "${matrix_auth}" != "none" ]]; then
       create_args+=(--auth "${matrix_auth}")
     fi
-    if [[ "${matrix_entrypoint}" != "class" ]]; then
+    if [[ "${global_mode}" == true ]]; then
+      create_args+=(--workers-entrypoint global)
+    elif [[ "${matrix_entrypoint}" != "class" ]]; then
       create_args+=(--workers-entrypoint "${matrix_entrypoint}")
     fi
     "${generator[@]}" "${create_args[@]}"

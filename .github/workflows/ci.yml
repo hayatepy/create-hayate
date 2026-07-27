@@ -126,7 +126,7 @@ jobs:
       fail-fast: false
       matrix:
         template:
-          [workers, mcp, admin, production, production-admin, production-global]
+          [workers, mcp, admin, admin-global, production, production-admin, production-global]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
