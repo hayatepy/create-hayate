@@ -1,0 +1,31 @@
+{#def todo, current_filter #}
+<article id="todo-{{ todo.id }}" class="todo-item{% if todo.done %} is-done{% endif %}">
+  <label class="check-control">
+    <input
+      type="checkbox"
+      aria-label="Mark {{ todo.title }} complete"
+      {% if todo.done %}checked{% endif %}
+      hx-patch="/app/todos/{{ todo.id }}/toggle?filter={{ current_filter }}"
+      hx-target="#todo-list"
+      hx-swap="outerHTML"
+    >
+    <span aria-hidden="true"></span>
+  </label>
+  <p>{{ todo.title }}</p>
+  <div class="item-actions">
+    <button
+      class="text-button"
+      type="button"
+      hx-get="/app/todos/{{ todo.id }}/edit"
+      hx-target="#todo-{{ todo.id }}"
+      hx-swap="outerHTML"
+    >Edit</button>
+    <button
+      class="text-button danger"
+      type="button"
+      hx-delete="/app/todos/{{ todo.id }}?filter={{ current_filter }}"
+      hx-target="#todo-list"
+      hx-swap="outerHTML"
+    >Delete</button>
+  </div>
+</article>

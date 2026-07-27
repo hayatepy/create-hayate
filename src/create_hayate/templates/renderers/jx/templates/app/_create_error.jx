@@ -1,0 +1,2 @@
+{#def error #}
+<p class="form-error" role="alert">{{ error }}</p>

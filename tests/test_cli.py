@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from create_hayate import cli
-from create_hayate.cli import FEATURES, FRONTENDS, TEMPLATES, main
+from create_hayate.cli import FEATURES, FRONTENDS, RENDERERS, TEMPLATES, main
 
 
 def _generate(
@@ -50,6 +50,8 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
         "$feature_registrations",
         "$dependencies",
         "$wrangler_bindings",
+        "$htmx_view_page",
+        "$htmx_view_list",
     }
     for path in dest.rglob("*"):
         if path.is_file():
@@ -336,6 +338,9 @@ def test_production_preset_supports_the_explicit_global_http_entrypoint(
         ("--template", "workers", "--with", "unknown"),
         ("--template", "workers", "--with", ","),
         ("--template", "api", "--frontend", "vue"),
+        ("--template", "api", "--renderer", "htpy"),
+        ("--template", "workers", "--frontend", "htmx", "--renderer", "jx"),
+        ("--template", "workers", "--frontend", "htmx", "--renderer", "tdom"),
     ],
 )
 def test_unsupported_combinations_fail_before_writing(tmp_path, monkeypatch, capsys, args):
@@ -495,6 +500,87 @@ def test_htmx_profile_generates_a_runnable_same_origin_application(
         config = wrangler.read_text(encoding="utf-8")
         assert '[assets]\ndirectory = "./public"\nbinding = "ASSETS"' in config
         assert '"/app/*"' in config
+
+
+@pytest.mark.parametrize(
+    ("template", "renderer", "dependency", "view_file"),
+    [
+        ("api", "jinja", '"hayate-htmx>=0.1,<0.2"', "templates/app/page.html"),
+        ("api", "htpy", '"hayate-htmx[htpy]>=0.2,<0.3"', "src/htmx_views.py"),
+        ("api", "jx", '"hayate-htmx[jx]>=0.2,<0.3"', "templates/app/page.jx"),
+        ("api", "tdom", '"hayate-htmx[tdom]>=0.2,<0.3"', "src/tdom_views.py"),
+        ("workers", "jinja", '"jinja2==3.1.6"', "templates/app/page.html"),
+        ("workers", "htpy", '"htpy>=26.5,<27"', "src/htmx_views.py"),
+    ],
+)
+def test_htmx_renderer_axis_generates_native_views(
+    tmp_path,
+    monkeypatch,
+    template,
+    renderer,
+    dependency,
+    view_file,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template=template,
+        extra_args=("--frontend", "htmx", "--renderer", renderer),
+    )
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    feature = (dest / "src/feature_htmx.py").read_text(encoding="utf-8")
+    profile = (dest / "frontend/profile.toml").read_text(encoding="utf-8")
+
+    assert dependency in project
+    assert (dest / view_file).is_file()
+    assert "$htmx_view_" not in feature
+    if renderer == "tdom":
+        assert 'requires-python = ">=3.14"' in project
+    if template == "workers" and renderer == "htpy":
+        assert (dest / "src/hayate_htmx/htpy.py").is_file()
+        assert "e26de517b301b7caf119609f62085bbf900ba7c3" in profile
+        assert "embed_htmx_templates.py" not in (dest / "manage_workers.py").read_text(
+            encoding="utf-8"
+        )
+
+
+def test_implicit_and_explicit_jinja_renderer_generate_identical_projects(
+    tmp_path,
+    monkeypatch,
+):
+    implicit = _generate(
+        tmp_path,
+        monkeypatch,
+        name="implicit",
+        template="api",
+        extra_args=("--frontend", "htmx"),
+    )
+    explicit = _generate(
+        tmp_path,
+        monkeypatch,
+        name="explicit",
+        template="api",
+        extra_args=("--frontend", "htmx", "--renderer", "jinja"),
+    )
+    implicit_files = {
+        path.relative_to(implicit): path.read_bytes()
+        for path in implicit.rglob("*")
+        if path.is_file()
+    }
+    explicit_files = {
+        path.relative_to(explicit): path.read_bytes()
+        for path in explicit.rglob("*")
+        if path.is_file()
+    }
+
+    assert implicit_files.keys() == explicit_files.keys()
+    for path, content in implicit_files.items():
+        content = content.replace(b"implicit", b"explicit")
+        assert content == explicit_files[path], path
+
+
+def test_renderer_catalog_is_complete():
+    assert tuple(RENDERERS) == ("jinja", "htpy", "jx", "tdom")
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))

@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from create_hayate.cli import RENDERERS
 from create_hayate.frontend_compatibility import (
     FRONTEND_PROFILES,
     FULL_SHARDS,
@@ -457,6 +458,17 @@ def _render_document() -> str:
         f"| `{case.id}` | {'yes' if case.browser else 'no'} | {'yes' if case.workerd else 'no'} |"
         for case in smoke_frontend_cases()
     )
+    renderer_support = {
+        "jinja": ("3.12+", "yes", "compatibility default"),
+        "htpy": ("3.12+", "real-workerd proven", "typed Python components"),
+        "jx": ("3.12+", "not claimed", "component templates"),
+        "tdom": ("3.14+, experimental", "not claimed", "t-string components"),
+    }
+    renderer_rows = "\n".join(
+        f"| `{name}` | {renderer_support[name][0]} | {renderer_support[name][1]} | "
+        f"{renderer_support[name][2]} |"
+        for name in RENDERERS
+    )
     return f"""# Frontend compatibility
 
 This is the published compatibility contract for `create-hayate` frontend
@@ -478,6 +490,19 @@ the CLI allow-list, or the executable matrix drifts from that source.
   **{len(SUPPORTED_FRONTEND_CASES)} unique supported frontend compositions**.
 - Frontends remain intentionally incompatible with `--preset production`
   until each profile has a dedicated reviewed production contract.
+
+### htmx renderer axis
+
+| Renderer | ASGI | Workers | View model |
+|---|---|---|---|
+{renderer_rows}
+
+The renderer axis is additive to the 112 runtime/frontend compositions rather
+than multiplying that compatibility set. Pull requests separately generate
+htpy, Jx, and tdom ASGI projects, then run their pytest, Ruff, and Chromium
+contracts. A dedicated htpy Workers job runs the generated CRUD, asset, SSE,
+identity, bundle, and upload contracts through real workerd. Jx and tdom remain
+fail-closed on Workers until equivalent evidence exists.
 
 ## Exact CI toolchains
 

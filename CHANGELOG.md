@@ -4,6 +4,22 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Added
+
+- Add `--renderer jinja|htpy|jx|tdom` for htmx projects while preserving
+  Jinja as the byte-for-byte compatibility default.
+- Generate renderer-native page, fragment, validation, edit, list, item, and
+  identity views with shared routing, security, storage, SSE, and browser
+  contracts.
+- Support htpy on ASGI and real workerd, Jx on ASGI, and experimental tdom on
+  Python 3.14 ASGI; reject every unproven runtime/renderer composition before
+  creating a destination.
+
+### Changed
+
+- Record the renderer-specific `hayate-htmx` package line or reviewed Workers
+  source snapshot in generated htmx profile metadata.
+
 ## [0.7.1] - 2026-07-27
 
 ### Changed

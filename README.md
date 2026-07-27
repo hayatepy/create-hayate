@@ -86,6 +86,28 @@ with the same same-origin URLs. ASGI installs the published
 snapshot because its Python bundle is assembled across the Pywrangler/Pyodide
 boundary instead of installing the wheel at runtime.
 
+htmx projects can select a native rendering model independently:
+
+```sh
+uvx create-hayate my-app \
+  --template workers \
+  --frontend htmx \
+  --renderer htpy
+```
+
+| Renderer | ASGI | Workers | Generated view model |
+|---|---|---|---|
+| `jinja` (default) | yes | yes | Autoescaping file templates |
+| `htpy` | yes | real-workerd proven | Typed Python components and async rendering |
+| `jx` | yes | not claimed | Jinja-backed components with props, slots, and assets |
+| `tdom` | Python 3.14+, experimental | not claimed | Escaping t-string components |
+
+All renderer profiles reuse the same generated routes, identity and storage
+boundaries, CSRF/CSP/cache policy, htmx 2/4 representation selection, SSE
+transport, CRUD tests, and Chromium journey. Unsupported pairs fail before
+the destination directory is created. Omitting `--renderer` keeps the existing
+Jinja project byte-for-byte identical.
+
 `react` generates a pinned Node 24/Vite/React Router application in
 `frontend/`. It enables Hayate OpenAPI automatically, keeps JSON below `/api`,
 derives the `openapi-fetch` client entirely from checked-in generated types,

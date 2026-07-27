@@ -73,6 +73,7 @@ def test_every_supported_frontend_case_builds_the_cli_plan():
     for case in SUPPORTED_FRONTEND_CASES:
         arguments = argparse.Namespace(
             frontend=case.frontend,
+            renderer=None,
             features=",".join(case.requested_features) or None,
             preset=None,
             auth=None if case.auth == "none" else case.auth,

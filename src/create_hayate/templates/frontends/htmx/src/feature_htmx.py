@@ -9,9 +9,7 @@ from pathlib import Path
 from hayate import Context, Hayate, HTTPException, Next, Response, SSEMessage
 from hayate.middleware import static_files
 $htmx_import_block
-from identity import principal, subject
-from storage import create_todo, delete_todo, get_todo, list_todos, toggle_todo, update_todo
-from todo_domain import InvalidTodoTitle, normalize_title
+$htmx_local_imports
 
 _ROOT = Path(__file__).resolve().parents[1]
 _FILTERS = frozenset({"all", "open", "done"})
@@ -90,15 +88,15 @@ $htmx_renderer_setup
 
     @app.get("/auth")
     async def auth_boundary(c: Context) -> Response:
-        html = await renderer.render("auth/page.html", {"principal": principal(c)})
+        html = await renderer.render($htmx_view_auth, {"principal": principal(c)})
         return c.html(html)
 
     @app.get("/app")
     async def app_index(c: Context) -> Response:
         return await pages.render(
             c,
-            page="app/page.html",
-            fragment="app/_list.html",
+            page=$htmx_view_page,
+            fragment=$htmx_view_list,
             values=await _page_values(c),
         )
 
@@ -126,7 +124,7 @@ $htmx_renderer_setup
         try:
             title = normalize_title(form.get("title"))
         except InvalidTodoTitle as exc:
-            html = await renderer.render("app/_create_error.html", {"error": str(exc)})
+            html = await renderer.render($htmx_view_create_error, {"error": str(exc)})
             return with_htmx(
                 append_htmx_vary(c.html(html)),
                 retarget="#todo-form-errors",
@@ -136,8 +134,8 @@ $htmx_renderer_setup
         todo = await create_todo(c, subject(c), title)
         response = await pages.render(
             c,
-            page="app/page.html",
-            fragment="app/_list.html",
+            page=$htmx_view_page,
+            fragment=$htmx_view_list,
             values=await _page_values(c),
             status=201,
         )
@@ -149,7 +147,7 @@ $htmx_renderer_setup
         if todo is None:
             return c.not_found()
         html = await renderer.render(
-            "app/_edit.html",
+            $htmx_view_edit,
             {"error": None, "todo": todo},
         )
         return c.html(html)
@@ -165,7 +163,7 @@ $htmx_renderer_setup
             title = normalize_title(form.get("title"))
         except InvalidTodoTitle as exc:
             html = await renderer.render(
-                "app/_edit.html",
+                $htmx_view_edit,
                 {"error": str(exc), "todo": todo},
             )
             return with_htmx(
@@ -178,7 +176,7 @@ $htmx_renderer_setup
         if updated is None:
             return c.not_found()
         html = await renderer.render(
-            "app/_item.html",
+            $htmx_view_item,
             {"current_filter": _selected_filter(c), "todo": updated},
         )
         return c.html(html)
@@ -187,12 +185,12 @@ $htmx_renderer_setup
     async def toggle(c: Context) -> Response:
         if await toggle_todo(c, subject(c), c.req.param("id") or "") is None:
             return c.not_found()
-        html = await renderer.render("app/_list.html", await _page_values(c))
+        html = await renderer.render($htmx_view_list, await _page_values(c))
         return c.html(html)
 
     @app.delete("/app/todos/:id", _csrf_guard)
     async def delete(c: Context) -> Response:
         if not await delete_todo(c, subject(c), c.req.param("id") or ""):
             return c.not_found()
-        html = await renderer.render("app/_list.html", await _page_values(c))
+        html = await renderer.render($htmx_view_list, await _page_values(c))
         return c.html(html)
