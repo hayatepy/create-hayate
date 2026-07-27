@@ -42,7 +42,7 @@ _DEPENDENCIES = {
 _HTMX_COMMIT = "255de5bf3fc3f3f7665572940ffb5bfcef06d6b2"
 _FRONTEND_DEPENDENCIES = {
     "none": (),
-    "htmx": (f"hayate-htmx @ git+https://github.com/hayatepy/hayate-htmx.git@{_HTMX_COMMIT}",),
+    "htmx": ("hayate-htmx>=0.1,<0.2",),
     "react": (),
     "astro": (),
 }
@@ -448,14 +448,13 @@ Open `/app` for the server-rendered task UI. JSON contracts live under
 `/api`, the current identity is visible at `/auth`, and every browser request
 stays on the application origin.
 
-The profile pins the reviewed `hayate-htmx` 0.1 release-gate commit,
-`255de5bf3fc3f3f7665572940ffb5bfcef06d6b2`, and uses autoescaping Jinja
-templates, strict same-origin mutation checks, CSP, page/fragment `Vary`
-headers, and the self-hosted htmx 2.0.10 asset. ASGI resolves that immutable
-Git commit directly. Until the package is published, Workers includes the
-same small source snapshot because Pywrangler cannot install VCS records from
-its portable lock. The commit and asset SHA-256 are recorded in
-`frontend/profile.toml` and asserted by generated tests.
+The ASGI profile installs the published `hayate-htmx>=0.1,<0.2` release and
+uses autoescaping Jinja templates, strict same-origin mutation checks, CSP,
+page/fragment `Vary` headers, and the self-hosted htmx 2.0.10 asset. Workers
+keeps the reviewed `hayate-htmx` 0.1 source snapshot at
+`255de5bf3fc3f3f7665572940ffb5bfcef06d6b2` because Pywrangler does not install
+the wheel at runtime. The package range, Workers commit, and asset SHA-256 are
+recorded in `frontend/profile.toml` and asserted by generated tests.
 
 Run the optional Chromium smoke test once the browser is installed:
 
