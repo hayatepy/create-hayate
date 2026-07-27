@@ -4,6 +4,14 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.7.2] - 2026-07-27
+
+### Changed
+
+- Generate projects on the compatible `hayate>=0.13,<0.14` and
+  `hayate-openapi>=0.7,<0.8` release lines so bounded multipart uploads and
+  typed file contracts are available from the normal scaffold path.
+
 ## [0.7.1] - 2026-07-27
 
 ### Changed
