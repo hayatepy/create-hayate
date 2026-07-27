@@ -46,6 +46,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | 名前 | 内容 | 検証 |
 |---|---|---|
 | base | TODO API、identity/storage protocol、pytest | 全生成物 |
+| observability | safe request ID、最終statusのquery-free JSON access event | direct/ASGI/workerd |
 | `api` runtime | ASGI起動 | 実ASGI HTTP |
 | `workers` runtime | wrangler/Pywrangler。既定は `WorkerEntrypoint` | 実workerd |
 | `openapi` | typed path/response contract、OpenAPI 3.1.1、Scalar、TypeScript export | runtime/schema/型生成 |
@@ -58,6 +59,10 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 
 - 生成順はbase → runtime → feature → auth → production → frontend。既存componentは
   所有する境界だけを置換できるが、frontend overlayによるbackend file上書きは常に失敗する。
+- observabilityは選択式componentにせず、全生成物のmiddleware登録順で常に最外周へ置く。
+  `X-Request-ID`は保守的な文字集合と長さで検証し、access eventはmethod/path/final status/
+  duration/request IDだけを持つ。query/header/bodyを既定で記録せず、request IDを認証情報として
+  扱わない。
 - `none` は互換defaultであり、既存commandの生成物を変えない。
 - frontendは同じbackend templateを複製せず、profile固有の非衝突fileだけを合成する。
   htmxは`src/feature_htmx.py`、`templates/`、`public/`、profile/testを所有し、JSONとHTMLから
@@ -103,6 +108,9 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - base Workers / MCP / productionを実workerdで起動する。productionはD1 migration後、
   Access identity付きHTTP writeをMCPからreadし、同一data/identity境界を固定する。
 - golden appを実ASGIでも起動し、同じ`src/app.py`をSQLiteで検証する。
+- observabilityは全生成物のdirect testでresponse ID・query非露出・context復元を検証し、
+  production direct testでmiddleware 401/404の最終statusを固定する。実ASGIと実workerdでは
+  process logから相関JSON行を読み、query secretが同じ行へ出ないことを検証する。
 - admin profileは生成後direct request、実Chromium、ASGI+SQLite、実workerd+D1で
   認証/allowlist/owner scope/Origin/CRUD/search/sort/history/audit/bundle inclusionを固定する。
 - htmx profileは生成後のdirect request、実Chromium、実workerdを通し、page/fragment、

@@ -314,14 +314,20 @@ grep -F "upload[${template}]=" "${log_file}" | tail -1
 canonicalized="$(
   curl --fail --silent --max-time 5 \
     "${auth_header[@]}" \
+    -H "x-request-id: generated-workerd-smoke" \
     "http://127.0.0.1:${port}$(
       [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]] \
         && echo /api
-    )/canonicalize"
+    )/canonicalize?access_token=must-not-be-logged"
 )"
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
   "${canonicalized}"
+request_log_line="$(grep -F '"request_id":"generated-workerd-smoke"' "${log_file}" | tail -1)"
+if [[ -z "${request_log_line}" || "${request_log_line}" == *"must-not-be-logged"* ]]; then
+  echo "generated workerd request log is missing correlation or exposed the query string" >&2
+  exit 1
+fi
 echo "contract[${template}].canonicalize=${canonicalized}"
 
 if [[ "${admin_mode}" == true ]]; then

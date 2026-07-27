@@ -35,7 +35,15 @@ AUTHS = ("none", "cloudflare-access")
 PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "admin", "mcp", "openapi")
 _PRODUCTION_FEATURES = frozenset({"sql", "mcp", "openapi"})
-_REGISTRATION_ORDER = ("access", "production", "admin", "mcp", "openapi", "htmx")
+_REGISTRATION_ORDER = (
+    "observability",
+    "access",
+    "production",
+    "admin",
+    "mcp",
+    "openapi",
+    "htmx",
+)
 _DEPENDENCIES = {
     "admin": "jinja2==3.1.6",
     "openapi": "hayate-openapi>=0.7,<0.8",
@@ -351,7 +359,8 @@ def _toml_array(values: list[str]) -> str:
 
 
 def _feature_registration(plan: ScaffoldPlan) -> tuple[str, str]:
-    enabled = set(plan.features).intersection(_REGISTRATION_ORDER)
+    enabled = {"observability"}
+    enabled.update(set(plan.features).intersection(_REGISTRATION_ORDER))
     if plan.auth == "cloudflare-access":
         enabled.add("access")
     if plan.production:
@@ -618,7 +627,7 @@ rendering; do not recreate Hayate business logic as Astro endpoints or actions.
 
 def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
-    dependencies = ["hayate>=0.13,<0.14"]
+    dependencies = ["hayate>=0.15.1,<0.16"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
     if plan.frontend == "htmx" and plan.runtime == "workers":
         dependencies.append("jinja2==3.1.6")

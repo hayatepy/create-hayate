@@ -4,6 +4,18 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Added
+
+- Generate validated request correlation and compact structured access events
+  by default, before identity, production controls, and optional features.
+- Exercise safe response IDs, exact final statuses, and query exclusion
+  through generated direct, ASGI, Workers class, and Workers global paths.
+
+### Changed
+
+- Generate projects on `hayate>=0.15.1,<0.16` so final handled responses are
+  logged only after the application error boundary has selected their status.
+
 ## [0.10.0] - 2026-07-28
 
 ### Added

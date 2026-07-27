@@ -8,9 +8,10 @@
 Composable, production-oriented project scaffolding for
 [hayate](https://github.com/hayatepy/hayate).
 
-The golden path creates one application core with API routes, OpenAPI/Scalar,
-MCP 2025-11-25, checked SQL, Cloudflare Access identity, SQLite on ASGI, and
-D1 on Cloudflare Workers:
+The golden path creates one application core with safe request correlation,
+compact JSON access events, API routes, OpenAPI/Scalar, MCP 2025-11-25,
+checked SQL, Cloudflare Access identity, SQLite on ASGI, and D1 on Cloudflare
+Workers:
 
 ```sh
 uvx create-hayate my-app --template workers --preset production
@@ -46,6 +47,7 @@ uvx create-hayate my-app \
 
 | Feature | Generated boundary |
 |---|---|
+| built in | Validated request IDs and query-free structured access events across ASGI and Workers |
 | `admin` | Explicit identity-scoped TODO operations UI with checked SQL, redacted audit history, safe branding, and accessible localized controls |
 | `openapi` | Typed UUID/response contracts, OpenAPI 3.1.1, hardened Scalar, pinned TypeScript export |
 | `mcp` | MCP 2025-11-25 tools sharing request identity and storage |
@@ -170,6 +172,10 @@ reads the same authenticated data through MCP.
   build-time content separate from browser-only private state.
 - **Portable application core.** `src/app.py` does not change between ASGI and
   Workers. Runtime resources enter through the Hayate request context.
+- **Safe observability by default.** Request correlation wraps every generated
+  identity, production, and optional feature boundary; access events contain
+  narrow metadata and the exact final response status without query strings,
+  headers, or bodies.
 - **Feature-complete Workers default.** `WorkerEntrypoint` remains the default.
   HTTP-only services can explicitly request `--workers-entrypoint global`.
 - **Evidence over claims.** CI runs unit tests, every dependency composition,
