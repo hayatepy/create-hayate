@@ -311,14 +311,31 @@ if [[ "${ready}" != true ]]; then
 fi
 
 grep -F "upload[${template}]=" "${log_file}" | tail -1
-canonicalized="$(
-  curl --fail --silent --max-time 5 \
+canonicalize_path="$(
+  [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]] \
+    && echo /api
+)/canonicalize"
+curl --fail --silent --show-error --max-time 5 \
+  "${auth_header[@]}" \
+  "http://127.0.0.1:${port}${canonicalize_path}" >/dev/null
+
+canonicalized_file="${test_dir}/canonicalized.json"
+canonicalized_status="$(
+  curl --silent --show-error --max-time 5 \
+    --output "${canonicalized_file}" \
+    --write-out "%{http_code}" \
     "${auth_header[@]}" \
     -H "x-request-id: generated-workerd-smoke" \
-    "http://127.0.0.1:${port}$(
-      [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]] \
-        && echo /api
-    )/canonicalize?access_token=must-not-be-logged"
+    "http://127.0.0.1:${port}${canonicalize_path}?access_token=must-not-be-logged"
+)"
+if [[ "${canonicalized_status}" != "200" ]]; then
+  tail -n 250 "${log_file}" >&2
+  cat "${canonicalized_file}" >&2
+  echo "generated workerd canonicalize returned ${canonicalized_status}" >&2
+  exit 1
+fi
+canonicalized="$(
+  cat "${canonicalized_file}"
 )"
 uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1]) == {"hostname":"xn--wgv71a119e.example"}' \
