@@ -10,6 +10,7 @@ test("creates, edits, persists, and deep-links through the typed API", async ({ 
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Decide what moves today/ })).toBeVisible();
+  await expect(page.getByText(/Clear desk|open signals?/)).toBeVisible();
 
   await page.getByLabel("New signal").fill("Connect React to Hayate");
   await page.getByRole("button", { name: "Add to desk" }).click();

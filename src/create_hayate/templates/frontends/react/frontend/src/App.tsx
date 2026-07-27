@@ -202,7 +202,7 @@ function FocusDesk() {
       </section>
 
       <section className="workbench" aria-label="Task workspace">
-        <form className="capture" onSubmit={add}>
+        <form className="capture" onSubmit={add} aria-busy={loading}>
           <label htmlFor="new-task">New signal</label>
           <div className="capture-line">
             <input
@@ -213,8 +213,11 @@ function FocusDesk() {
               maxLength={200}
               required
               autoComplete="off"
+              disabled={loading}
             />
-            <button type="submit">Add to desk</button>
+            <button type="submit" disabled={loading || !title.trim()}>
+              Add to desk
+            </button>
           </div>
         </form>
 

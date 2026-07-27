@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import shlex
+import socket
 import subprocess
 import sys
 import tempfile
@@ -107,6 +108,29 @@ def _verify_toolchains(actual: dict[str, str], expected: dict[str, str]) -> None
             for name, versions in mismatches.items()
         )
         raise RuntimeError(f"toolchain-check: {rendered}")
+
+
+def _free_port() -> int:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
+def _browser_environment() -> dict[str, str]:
+    backend_port = _free_port()
+    frontend_port = _free_port()
+    while frontend_port == backend_port:
+        frontend_port = _free_port()
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "HAYATE_E2E_BACKEND_PORT": str(backend_port),
+            "HAYATE_E2E_FRONTEND_PORT": str(frontend_port),
+            "HAYATE_E2E_ISOLATED": "1",
+            "HAYATE_DEV_ORIGIN": f"http://127.0.0.1:{backend_port}",
+        }
+    )
+    return environment
 
 
 def _project_arguments(case: FrontendCase, project_name: str) -> list[str]:
@@ -287,11 +311,22 @@ def _run_case(
                         commands=commands,
                     )
                     phase = "browser-smoke"
+                    browser_env = _browser_environment()
+                    record["browser_environment"] = {
+                        name: browser_env[name]
+                        for name in (
+                            "HAYATE_E2E_BACKEND_PORT",
+                            "HAYATE_E2E_FRONTEND_PORT",
+                            "HAYATE_E2E_ISOLATED",
+                            "HAYATE_DEV_ORIGIN",
+                        )
+                    }
                     _run(
                         ["npm", "run", "test:e2e"],
                         cwd=frontend,
                         phase=phase,
                         commands=commands,
+                        env=browser_env,
                     )
             elif case.browser:
                 phase = "browser-install"
@@ -457,7 +492,9 @@ the CLI allow-list, or the executable matrix drifts from that source.
 Every run records the actual tool versions, wheel SHA-256, composition, phase,
 command, exit code, and duration in the uploaded
 `frontend-compatibility-evidence` JSON artifact. A run fails before generation
-if any actual tool version differs from this contract.
+if any actual tool version differs from this contract. Browser cases also
+record isolated, dynamically selected backend and frontend ports so an
+unrelated local server cannot satisfy their readiness probes.
 
 ## Pull-request smoke cases
 

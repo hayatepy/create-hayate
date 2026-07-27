@@ -560,6 +560,12 @@ def test_react_profile_generates_a_typed_same_origin_spa(
     document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
     assert '"title": "demo-app"' in document
     assert '"/api/todos"' in document
+    playwright = (dest / "frontend/playwright.config.ts").read_text(encoding="utf-8")
+    vite = (dest / "frontend/vite.config.ts").read_text(encoding="utf-8")
+    assert "HAYATE_E2E_BACKEND_PORT" in playwright
+    assert "HAYATE_E2E_FRONTEND_PORT" in playwright
+    assert "reuseExistingServer: !process.env.CI && !isolated" in playwright
+    assert "process.env.HAYATE_DEV_ORIGIN" in vite
 
     wrangler = dest / "wrangler.toml"
     if template == "api":
@@ -644,6 +650,10 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
     assert '"title": "demo-app"' in document
     assert '"/api/todos"' in document
     assert '"/api/todos"' in schema
+    playwright = (dest / "frontend/playwright.config.ts").read_text(encoding="utf-8")
+    assert "HAYATE_E2E_BACKEND_PORT" in playwright
+    assert "HAYATE_E2E_FRONTEND_PORT" in playwright
+    assert "reuseExistingServer: !process.env.CI && !isolated" in playwright
 
     wrangler = dest / "wrangler.toml"
     if template == "api":

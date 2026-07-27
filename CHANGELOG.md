@@ -4,6 +4,42 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Added
+
+- Generate a pinned Node 24, Vite, React Router, and TypeScript SPA with
+  `openapi-fetch`, responsive starter UI, same-origin credential transport,
+  production security headers, and no handwritten API models.
+- Export the React profile's OpenAPI document and TypeScript types from the
+  generated Hayate application, fail on artifact drift, and exercise
+  `npm ci`, typecheck, build, dependency audit, Chromium CRUD/deep links, and
+  Cloudflare Static Assets through real workerd.
+- Generate a pinned static Astro site with public build-time content, a small
+  visible Preact island for authenticated runtime state, local same-origin API
+  proxying, static-output privacy checks, custom deep routes and 404s, and
+  Cloudflare Static Assets routing through real workerd.
+- Share one generated, drift-checked OpenAPI document, TypeScript schema, and
+  `openapi-fetch` client between the React and Astro profiles, with no
+  handwritten browser API models.
+- Define the 112 unique supported frontend compositions as packaged data used
+  by both the CLI allow-list and CI, with six built-wheel pull-request boundary
+  cases and a 12-shard weekly or manually dispatched full matrix.
+- Publish exact Python, Node, npm, and uv toolchains plus phase-level commands,
+  artifact digests, failures, and timings as aggregated frontend compatibility
+  evidence.
+
+### Changed
+
+- Move frontend smoke coverage into the data-driven compatibility workflow and
+  make React and Astro browser console/page errors fail their generated gates.
+
+### Fixed
+
+- Include optional MCP routes in generated React and Astro OpenAPI contracts.
+- Preserve frontend API prefixes and Cloudflare Access identity across the
+  htmx, React, and Astro feature compositions.
+- Isolate browser smoke tests on dynamic ports so unrelated local servers
+  cannot satisfy backend or frontend readiness probes.
+
 ## [0.6.0] - 2026-07-27
 
 ### Added
@@ -29,36 +65,12 @@ All notable changes to create-hayate are documented here.
 - Generate typed UUID path and response contracts from `hayate-openapi` 0.5
   for OpenAPI-enabled TODO APIs, while preserving the dependency-light
   Context-first implementation in minimal projects.
-- Generate a pinned Node 24, Vite, React Router, and TypeScript SPA with
-  `openapi-fetch`, responsive starter UI, same-origin credential transport,
-  production security headers, and no handwritten API models.
-- Export the React profile's OpenAPI document and TypeScript types from the
-  generated Hayate application, fail on artifact drift, and exercise
-  `npm ci`, typecheck, build, dependency audit, Chromium CRUD/deep links, and
-  Cloudflare Static Assets through real workerd.
-- Generate a pinned static Astro site with public build-time content, a small
-  visible Preact island for authenticated runtime state, local same-origin API
-  proxying, static-output privacy checks, custom deep routes and 404s, and
-  Cloudflare Static Assets routing through real workerd.
-- Share one generated, drift-checked OpenAPI document, TypeScript schema, and
-  `openapi-fetch` client between the React and Astro profiles, with no
-  handwritten browser API models.
-- Define the 112 unique supported frontend compositions as packaged data used
-  by both the CLI allow-list and CI, with six built-wheel pull-request boundary
-  cases and a 12-shard weekly or manually dispatched full matrix.
-- Publish exact Python, Node, npm, and uv toolchains plus phase-level commands,
-  artifact digests, failures, and timings as aggregated frontend compatibility
-  evidence.
-
 ### Changed
 
 - Add shared todo title normalization and update/toggle storage operations so
   API, htmx, in-memory, SQLite, and D1 compositions use one domain contract.
 - Split TODO API registration into an overlay boundary so optional features
   can improve transport contracts without duplicating the application shell.
-- Move frontend smoke coverage into the data-driven compatibility workflow and
-  make React and Astro browser console/page errors fail their generated gates.
-
 ### Fixed
 
 - Keep the generated Chromium smoke strict while accepting the one
