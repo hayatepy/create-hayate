@@ -124,13 +124,57 @@ def test_exact_toolchain_contract_fails_closed_on_drift():
 
     assert expected == {
         "python": "3.14.6",
-        "uv": "0.11.32",
+        "uv": "0.11.28",
         "node": "24.18.0",
         "npm": "11.16.0",
     }
     matrix_runner._verify_toolchains(expected, expected)
     with pytest.raises(RuntimeError, match=r"node: expected 24\.18\.0, got 25\.0\.0"):
         matrix_runner._verify_toolchains({**expected, "node": "25.0.0"}, expected)
+
+
+def test_browser_matrix_uses_isolated_dynamic_ports():
+    environment = matrix_runner._browser_environment()
+
+    assert environment["HAYATE_E2E_ISOLATED"] == "1"
+    assert environment["HAYATE_E2E_BACKEND_PORT"] != environment["HAYATE_E2E_FRONTEND_PORT"]
+    assert environment["HAYATE_DEV_ORIGIN"] == (
+        f"http://127.0.0.1:{environment['HAYATE_E2E_BACKEND_PORT']}"
+    )
+
+
+def test_evidence_summary_fails_closed_on_incomplete_duplicate_or_failed_cases(tmp_path):
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    cases = smoke_frontend_cases()
+    for index, case in enumerate(cases):
+        (evidence / f"{index}.json").write_text(
+            json.dumps({"case": {"id": case.id}, "status": "passed"}),
+            encoding="utf-8",
+        )
+
+    output = tmp_path / "summary.json"
+    assert (
+        matrix_runner._summarize(
+            evidence,
+            scope="smoke",
+            output=output,
+            markdown=None,
+        )
+        == 0
+    )
+
+    duplicate = evidence / "duplicate.json"
+    duplicate.write_text((evidence / "0.json").read_text(encoding="utf-8"), encoding="utf-8")
+    assert matrix_runner._summarize(evidence, scope="smoke", output=output, markdown=None) == 1
+    duplicate.unlink()
+
+    failed = json.loads((evidence / "0.json").read_text(encoding="utf-8"))
+    failed["status"] = "failed"
+    (evidence / "0.json").write_text(json.dumps(failed), encoding="utf-8")
+    assert matrix_runner._summarize(evidence, scope="smoke", output=output, markdown=None) == 1
+    (evidence / "0.json").unlink()
+    assert matrix_runner._summarize(evidence, scope="smoke", output=output, markdown=None) == 1
 
 
 def test_published_frontend_compatibility_document_is_generated_from_data():

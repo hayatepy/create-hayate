@@ -30,12 +30,14 @@ the CLI allow-list, or the executable matrix drifts from that source.
 | Python (Workers/full matrix) | 3.13.11 |
 | Node.js | 24.18.0 |
 | npm | 11.16.0 |
-| uv | 0.11.32 |
+| uv | 0.11.28 |
 
 Every run records the actual tool versions, wheel SHA-256, composition, phase,
 command, exit code, and duration in the uploaded
 `frontend-compatibility-evidence` JSON artifact. A run fails before generation
-if any actual tool version differs from this contract.
+if any actual tool version differs from this contract. Browser cases also
+record isolated, dynamically selected backend and frontend ports so an
+unrelated local server cannot satisfy their readiness probes.
 
 ## Pull-request smoke cases
 
