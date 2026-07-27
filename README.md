@@ -72,7 +72,7 @@ uvx create-hayate my-app \
 |---|---|
 | `none` (default) | Backend-only output; byte-for-byte compatibility path |
 | `htmx` | Executable Hayate + htmx app at `/app`; shared JSON API at `/api` |
-| `react` | A separate SPA consumes an explicit Hayate API |
+| `react` | Vite/React Router SPA with generated, drift-checked API types |
 | `astro` | A separate static/hybrid site consumes an explicit Hayate API |
 
 The frontend layer is composed last and is forbidden from overwriting backend
@@ -82,9 +82,17 @@ browser smoke tests, and a checksum-verified self-hosted htmx 2.0.10 asset.
 ASGI serves that asset through Hayate; Workers uses Cloudflare Static Assets
 with the same same-origin URLs. Until `hayate-htmx` is published, ASGI pins
 its immutable release-gate Git commit and Workers bundles the same small
-source snapshot to work around Pywrangler's VCS-lock installation gap. React
-and Astro currently retain metadata-only ownership boundaries until their
-profile-specific changes land. Non-`none` profiles are rejected with the
+source snapshot to work around Pywrangler's VCS-lock installation gap.
+
+`react` generates a pinned Node 24/Vite/React Router application in
+`frontend/`. It enables Hayate OpenAPI automatically, keeps JSON below `/api`,
+derives the `openapi-fetch` client entirely from checked-in generated types,
+and fails CI when the OpenAPI document drifts. Vite proxies `/api` locally;
+the Workers template serves the production build through Cloudflare Static
+Assets with API-first routing and SPA deep-link fallback. `npm ci`, typecheck,
+build, dependency audit, Chromium CRUD, and real-workerd routing are exercised
+in CI. Astro retains a metadata-only ownership boundary until its
+profile-specific change lands. Non-`none` profiles are rejected with the
 production preset until each profile has a reviewed production contract.
 
 ## Production preset
@@ -112,8 +120,9 @@ reads the same authenticated data through MCP.
   three feature components, and explicit auth/production components replace
   copied full-template combinations.
 - **Orthogonal frontend ownership.** Runtime and backend features compose
-  first; one frontend overlay may add only non-colliding files. The htmx
-  transport calls the same domain and storage functions as the JSON API.
+  first; one frontend overlay may add only non-colliding files. htmx calls the
+  same domain and storage functions as the JSON API; React consumes generated
+  OpenAPI types without introducing a second backend.
 - **Portable application core.** `src/app.py` does not change between ASGI and
   Workers. Runtime resources enter through the Hayate request context.
 - **Feature-complete Workers default.** `WorkerEntrypoint` remains the default.

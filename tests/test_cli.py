@@ -411,7 +411,7 @@ def test_implicit_frontend_none_preserves_the_explicit_none_output(tmp_path, mon
     assert not (implicit / "frontend").exists()
 
 
-@pytest.mark.parametrize("frontend", ["astro", "react"])
+@pytest.mark.parametrize("frontend", ["astro"])
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 def test_frontend_is_an_orthogonal_overlay(
     tmp_path,
@@ -531,6 +531,80 @@ def test_htmx_profile_generates_a_runnable_same_origin_application(
         config = wrangler.read_text(encoding="utf-8")
         assert '[assets]\ndirectory = "./public"\nbinding = "ASSETS"' in config
         assert '"/app/*"' in config
+
+
+@pytest.mark.parametrize("template", sorted(TEMPLATES))
+def test_react_profile_generates_a_typed_same_origin_spa(
+    tmp_path,
+    monkeypatch,
+    template,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template=template,
+        extra_args=("--frontend", "react"),
+    )
+
+    for expected in (
+        "frontend/package.json",
+        "frontend/package-lock.json",
+        "frontend/openapi.json",
+        "frontend/src/api/schema.d.ts",
+        "frontend/src/api/client.ts",
+        "frontend/src/App.tsx",
+        "frontend/public/_headers",
+        "frontend/scripts/sync-openapi.mjs",
+        "frontend/tests/smoke.spec.ts",
+        "frontend/.node-version",
+        "frontend/.gitignore",
+        "scripts/export_api.sh",
+        "src/feature_openapi.py",
+    ):
+        assert (dest / expected).is_file(), expected
+
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"hayate-openapi>=0.5,<0.6"' in project
+    assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
+        encoding="utf-8"
+    )
+    application = (dest / "src/app.py").read_text(encoding="utf-8")
+    todo_api = (dest / "src/todo_api.py").read_text(encoding="utf-8")
+    assert '@app.get("/api/health")' in application
+    assert '@app.get("/api/todos")' in todo_api
+
+    package = (dest / "frontend/package.json").read_text(encoding="utf-8")
+    lock = (dest / "frontend/package-lock.json").read_text(encoding="utf-8")
+    assert '"name": "demo-app-web"' in package
+    assert '"name": "demo-app-web"' in lock
+    for dependency in (
+        '"react": "19.2.8"',
+        '"react-router": "8.3.0"',
+        '"openapi-typescript": "7.13.0"',
+        '"openapi-fetch": "0.17.0"',
+    ):
+        assert dependency in package
+    assert '"api:check": "node scripts/sync-openapi.mjs --check"' in package
+
+    client = (dest / "frontend/src/api/client.ts").read_text(encoding="utf-8")
+    assert 'from "./schema"' in client
+    assert 'credentials: "include"' in client
+    assert "interface Todo" not in client
+    schema = (dest / "frontend/src/api/schema.d.ts").read_text(encoding="utf-8")
+    assert '"/api/todos"' in schema
+    assert "export type $defs" in schema
+    document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
+    assert '"title": "demo-app"' in document
+    assert '"/api/todos"' in document
+
+    wrangler = dest / "wrangler.toml"
+    if template == "api":
+        assert not wrangler.exists()
+    else:
+        config = wrangler.read_text(encoding="utf-8")
+        assert 'directory = "./frontend/dist"' in config
+        assert 'not_found_handling = "single-page-application"' in config
+        assert 'run_worker_first = ["/api/*"' in config
 
 
 def test_frontend_overlay_collision_fails_without_overwriting(tmp_path):

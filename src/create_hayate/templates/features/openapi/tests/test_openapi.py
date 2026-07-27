@@ -10,8 +10,8 @@ async def test_openapi_and_scalar_come_from_the_registered_routes():
     assert response.status == 200
     document = await response.json()
     assert document["openapi"] == "3.1.1"
-    assert "/todos" in document["paths"]
-    create = document["paths"]["/todos"]["post"]
+    assert "$api_prefix/todos" in document["paths"]
+    create = document["paths"]["$api_prefix/todos"]["post"]
     assert create["operationId"] == "createTodo"
     create_schema = create["requestBody"]["content"]["application/json"]["schema"]
     assert create_schema["properties"]["title"]["minLength"] == 1
@@ -21,16 +21,15 @@ async def test_openapi_and_scalar_come_from_the_registered_routes():
         "type": "string",
         "format": "uuid",
     }
-    path_parameter = document["paths"]["/todos/{id}"]["get"]["parameters"][0]
+    path_parameter = document["paths"]["$api_prefix/todos/{id}"]["get"]["parameters"][0]
     assert path_parameter == {
         "name": "id",
         "in": "path",
         "required": True,
         "schema": {"type": "string", "format": "uuid"},
     }
-    generated_response = document["paths"]["/todos/{id}"]["get"]["responses"]["200"]["content"][
-        "application/json"
-    ]["schema"]
+    show_operation = document["paths"]["$api_prefix/todos/{id}"]["get"]
+    generated_response = show_operation["responses"]["200"]["content"]["application/json"]["schema"]
     assert generated_response["properties"]["id"]["format"] == "uuid"
 
     docs = await app.request("/docs", headers=AUTH_HEADERS)

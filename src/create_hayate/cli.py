@@ -162,6 +162,8 @@ def _build_plan(
     frontend = args.frontend
     if template == "mcp":
         features.add("mcp")
+    if frontend == "react":
+        features.add("openapi")
 
     production = args.preset == "production"
     auth = args.auth
@@ -236,12 +238,19 @@ def _readme_sections(plan: ScaffoldPlan) -> dict[str, str]:
         feature_names.append(f"auth:{plan.auth}")
     if plan.production:
         feature_names.append("production-controls")
-    if plan.frontend == "htmx":
-        feature_names.append("frontend:htmx")
+    if plan.frontend in {"htmx", "react"}:
+        feature_names.append(f"frontend:{plan.frontend}")
 
     quickstart = ["uv sync", "uv run pytest"]
     if sql and plan.runtime == "workers":
         quickstart.append("uv run python manage_workers.py d1 migrations apply DB --local")
+    if plan.frontend == "react":
+        quickstart.extend(
+            [
+                "npm --prefix frontend ci",
+                "npm --prefix frontend run build",
+            ]
+        )
     quickstart.append(
         "uv run uvicorn app:app --app-dir src --reload"
         if plan.runtime == "api"
@@ -273,7 +282,15 @@ The MCP 2025-11-25 endpoint is `/mcp`. Its `list_todos` tool reads the same
 identity context and SQL-backed storage as the HTTP API.
 """
     openapi_section = ""
-    if openapi:
+    if openapi and plan.frontend == "react":
+        openapi_section = """
+## API schema
+
+OpenAPI 3.1 JSON is served at `/openapi.json`; Scalar is served at `/docs`.
+The React profile below owns the checked-in browser contract and generated
+TypeScript types.
+"""
+    elif openapi:
         openapi_section = """
 ## API schema and typed client
 
@@ -334,6 +351,41 @@ HAYATE_HTMX_BROWSER_TESTS=1 uv run pytest -m browser -q
 ASGI serves `public/assets` through Hayate. The Workers configuration publishes
 `public` through Cloudflare Static Assets and sends `/app`, `/api`, and `/auth`
 to Python first. Both paths use the same same-origin URLs and application code.
+"""
+    elif plan.frontend == "react":
+        frontend_section = """
+## React SPA
+
+The TypeScript application lives in `frontend/`; Hayate remains the only
+backend and owns every `/api` route. The browser client is generated from
+`frontend/openapi.json`, sends same-origin cookies with every request, and does
+not store credentials in local storage.
+
+Start both development servers in separate terminals:
+
+```sh
+uv run uvicorn app:app --app-dir src --reload
+cd frontend && npm ci && npm run dev
+```
+
+Vite proxies `/api` to Hayate during development. Before committing an API
+change, refresh the checked-in contract and client types:
+
+```sh
+cd frontend
+npm run api:generate
+npm run api:check
+```
+
+`npm run api:check` exports OpenAPI from the current Hayate routes and fails if
+either the document or generated TypeScript types drift. `npm run typecheck`,
+`npm run build`, and `npm run test:e2e` exercise the browser application.
+
+For ASGI production, publish `frontend/dist` from a static host on the same
+origin, proxy `/api/*`, `/openapi.json`, and `/docs` to Hayate, and rewrite
+non-file navigation requests such as `/about` to `index.html`. Do not rewrite
+API requests. The Workers template configures this split directly with
+Cloudflare Static Assets and SPA fallback.
 """
     return {
         "feature_summary": ", ".join(feature_names) if feature_names else "base API",
@@ -427,7 +479,7 @@ simple = {{ limit = 60, period = 60 }}
     variables = {
         "project_name": name,
         "frontend": plan.frontend,
-        "api_prefix": "/api" if plan.frontend == "htmx" else "",
+        "api_prefix": "/api" if plan.frontend in {"htmx", "react"} else "",
         "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),
@@ -506,7 +558,17 @@ binding = "ASSETS"
 run_worker_first = ["/", "/app", "/app/*", "/api/*", "/auth", "/auth/*"]
 """.strip()
             if plan.runtime == "workers" and plan.frontend == "htmx"
-            else ""
+            else (
+                """
+[assets]
+directory = "./frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/openapi.json", "/docs", "/mcp", "/mcp/*"]
+""".strip()
+                if plan.runtime == "workers" and plan.frontend == "react"
+                else ""
+            )
         ),
         "pytest_markers": (
             """
@@ -645,5 +707,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"  cd {args.name}")
     print("  uv run pytest")
+    if plan.frontend == "react":
+        print("  npm --prefix frontend ci")
+        if plan.runtime == "workers":
+            print("  npm --prefix frontend run build")
     print(f"  {serve}")
+    if plan.frontend == "react" and plan.runtime == "api":
+        print("  # In another terminal:")
+        print("  npm --prefix frontend run dev")
     return 0
