@@ -35,7 +35,7 @@ PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
 _REGISTRATION_ORDER = ("access", "production", "mcp", "openapi", "htmx")
 _DEPENDENCIES = {
-    "openapi": "hayate-openapi>=0.5,<0.6",
+    "openapi": "hayate-openapi>=0.6,<0.7",
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }

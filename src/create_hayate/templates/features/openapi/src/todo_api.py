@@ -4,7 +4,7 @@ from typing import Annotated, TypedDict
 from uuid import UUID
 
 from hayate import Context, Hayate, HTTPException
-from hayate_openapi import Path, StdlibProvider, endpoint, validated
+from hayate_openapi import Constraints, Path, Query, StdlibProvider, endpoint, validated
 
 from identity import subject
 from storage import Todo, create_todo, delete_todo, get_todo, list_todos, update_todo
@@ -40,8 +40,12 @@ def register(app: Hayate) -> None:
         operation_id="listTodos",
         providers=_PROVIDERS,
     )
-    async def todos_index(c: Context) -> list[TodoResponse]:
-        return [_response(todo) for todo in await list_todos(c, subject(c))]
+    async def todos_index(
+        c: Context,
+        limit: Annotated[int, Constraints(ge=1, le=100), Query()] = 25,
+    ) -> list[TodoResponse]:
+        todos = await list_todos(c, subject(c))
+        return [_response(todo) for todo in todos[:limit]]
 
     @app.post("$api_prefix/todos", validated("json", TODO_CREATE_SCHEMA))
     @endpoint(

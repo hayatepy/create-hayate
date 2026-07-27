@@ -11,6 +11,25 @@ async def test_openapi_and_scalar_come_from_the_registered_routes():
     document = await response.json()
     assert document["openapi"] == "3.1.1"
     assert "$api_prefix/todos" in document["paths"]
+    list_operation = document["paths"]["$api_prefix/todos"]["get"]
+    assert list_operation["parameters"] == [
+        {
+            "name": "limit",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25,
+            },
+        }
+    ]
+    invalid_limit = await app.request(
+        "$api_prefix/todos?limit=101",
+        headers=AUTH_HEADERS,
+    )
+    assert invalid_limit.status == 400
     create = document["paths"]["$api_prefix/todos"]["post"]
     assert create["operationId"] == "createTodo"
     create_schema = create["requestBody"]["content"]["application/json"]["schema"]
