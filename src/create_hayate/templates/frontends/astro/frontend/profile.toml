@@ -1,0 +1,4 @@
+profile = "astro"
+owner = "node"
+rendering = "static-or-hybrid"
+project = "$project_name"

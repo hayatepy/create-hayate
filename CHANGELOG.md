@@ -2,6 +2,17 @@
 
 All notable changes to create-hayate are documented here.
 
+## Unreleased
+
+### Added
+
+- Add an independent `--frontend none|htmx|react|astro` generation-plan axis
+  while preserving `none` as the compatibility default.
+- Compose frontend-owned trees after every backend layer and reject frontend
+  collisions before a partial project can survive.
+- Add isolated profile metadata boundaries and fail-fast production
+  compatibility constraints for the upcoming executable frontend profiles.
+
 ## [0.5.1] - 2026-07-27
 
 ### Fixed

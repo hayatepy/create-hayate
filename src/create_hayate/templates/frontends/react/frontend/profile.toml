@@ -1,0 +1,4 @@
+profile = "react"
+owner = "node"
+rendering = "spa"
+project = "$project_name"

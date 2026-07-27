@@ -8,6 +8,7 @@
 
 - `uvx create-hayate my-app --template api|workers|mcp` → テスト付きの動くプロジェクト一式を生成。
 - `--with openapi,mcp,sql` と `--auth` は共通baseへ小さなcomponentを合成する。
+- `--frontend none|htmx|react|astro` はruntime/feature/authと独立した最後の合成軸。
 - `--template workers --preset production` は実運用導線を固定したgolden composition。
 - **ゼロ依存**(argparse + shutil + string.Template のみ)。テンプレートはパッケージ内に同梱。
 - 生成物は本体 examples/ と同水準の「テスト付き最小アプリ」。**CI が全テンプレートを
@@ -52,8 +53,13 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | `sql` | migration、query contract、typed facade、SQLite/D1 | compile/実D1 |
 | `cloudflare-access` | local明示identity、本番JWT/JWKS検証 | auth境界 |
 | `production` | CORS、header、body limit、rate limit、checklist | golden app |
+| `frontend` | `none` / htmx / React / Astro の独立ownership境界 | overlay衝突検査 |
 
-- 生成順はbase → runtime → feature → auth → production。overlayは所有する境界だけを置換する。
+- 生成順はbase → runtime → feature → auth → production → frontend。既存componentは
+  所有する境界だけを置換できるが、frontend overlayによるbackend file上書きは常に失敗する。
+- `none` は互換defaultであり、既存commandの生成物を変えない。
+- htmx/React/Astroは同じbackend templateを複製せず、`frontend/`以下のprofile-owned treeだけを
+  合成する。各profileのproduction contractが入るまではproduction presetとの併用を拒否する。
 - `mcp`は互換shortcutであり、独立したfull templateを持たない。
 - `mcp`はhayate-authへ強制結合しない。`none`または既存Cloudflare Accessを明示する。
 

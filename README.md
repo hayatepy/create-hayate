@@ -56,6 +56,31 @@ CI. Invalid combinations fail before the destination directory is written;
 for example, Cloudflare Access production verification requires the Workers
 runtime.
 
+## Frontends
+
+Frontend choice is independent from runtime, authentication, and optional
+backend features:
+
+```sh
+uvx create-hayate my-app \
+  --template workers \
+  --frontend htmx \
+  --with openapi,sql
+```
+
+| Frontend | Ownership boundary |
+|---|---|
+| `none` (default) | Backend-only output; byte-for-byte compatibility path |
+| `htmx` | Hayate owns routing and server-rendered HTML |
+| `react` | A separate SPA consumes an explicit Hayate API |
+| `astro` | A separate static/hybrid site consumes an explicit Hayate API |
+
+The frontend layer is composed last and is forbidden from overwriting backend
+files. The axis currently generates profile metadata and its isolated
+`frontend/` ownership boundary; executable profile contents land in the
+profile-specific follow-up changes. Non-`none` profiles are rejected with the
+production preset until each profile has a reviewed production contract.
+
 ## Production preset
 
 `--preset production` is the reviewed composition of:
@@ -80,6 +105,9 @@ reads the same authenticated data through MCP.
 - **Small composition surface.** One base app, one Workers runtime overlay,
   three feature components, and explicit auth/production components replace
   copied full-template combinations.
+- **Orthogonal frontend ownership.** Runtime and backend features compose
+  first; one frontend overlay may add only frontend-owned files and collisions
+  fail before a partial project can survive.
 - **Portable application core.** `src/app.py` does not change between ASGI and
   Workers. Runtime resources enter through the Hayate request context.
 - **Feature-complete Workers default.** `WorkerEntrypoint` remains the default.
