@@ -311,10 +311,11 @@ if [[ "${ready}" != true ]]; then
 fi
 
 grep -F "upload[${template}]=" "${log_file}" | tail -1
-canonicalize_path="$(
-  [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]] \
-    && echo /api
-)/canonicalize"
+canonicalize_prefix=""
+if [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]]; then
+  canonicalize_prefix="/api"
+fi
+canonicalize_path="${canonicalize_prefix}/canonicalize"
 curl --fail --silent --show-error --max-time 5 \
   "${auth_header[@]}" \
   "http://127.0.0.1:${port}${canonicalize_path}" >/dev/null
