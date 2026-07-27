@@ -119,10 +119,10 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("template", "extra_args", "dependency"),
     [
-        ("api", (), '"hayate>=0.12.1,<0.13"'),
-        ("workers", (), '"hayate>=0.12.1,<0.13"'),
+        ("api", (), '"hayate>=0.13,<0.14"'),
+        ("workers", (), '"hayate>=0.13,<0.14"'),
         ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
-        ("api", ("--with", "openapi"), '"hayate-openapi>=0.6,<0.7"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.7,<0.8"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )
@@ -533,7 +533,7 @@ def test_react_profile_generates_a_typed_same_origin_spa(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"hayate-openapi>=0.6,<0.7"' in project
+    assert '"hayate-openapi>=0.7,<0.8"' in project
     assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
         encoding="utf-8"
     )
@@ -617,7 +617,7 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"hayate-openapi>=0.6,<0.7"' in project
+    assert '"hayate-openapi>=0.7,<0.8"' in project
     assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
         encoding="utf-8"
     )
