@@ -13,6 +13,7 @@ first production deployment.
 - Do not commit application secrets. Add future secrets with
   `wrangler secret put --env production`.
 - Confirm `/whoami` returns the Access subject expected by your tenancy model.
+$admin_production_checklist
 
 ## Database
 

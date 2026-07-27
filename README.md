@@ -40,22 +40,30 @@ Compose features explicitly instead of choosing from a template matrix:
 ```sh
 uvx create-hayate my-app \
   --template workers \
-  --with openapi,mcp,sql \
+  --with admin,openapi,mcp,sql \
   --auth cloudflare-access
 ```
 
 | Feature | Generated boundary |
 |---|---|
+| `admin` | Explicit identity-scoped TODO operations UI, checked-SQL paging/search/sort, and persistent redacted audit history |
 | `openapi` | Typed UUID/response contracts, OpenAPI 3.1.1, hardened Scalar, pinned TypeScript export |
 | `mcp` | MCP 2025-11-25 tools sharing request identity and storage |
 | `sql` | Migration-checked `hayate-sql`; SQLite on ASGI and D1 on Workers |
 | `--auth cloudflare-access` | Local explicit identity; production RS256/JWKS verification |
 
-All 40 supported runtime/feature/auth/entrypoint combinations, plus both
-production entrypoints, are generated, dependency resolved, and imported in
-CI. Invalid combinations fail before the destination directory is written;
-for example, Cloudflare Access production verification requires the Workers
-runtime.
+`admin` implies `sql` and Cloudflare Access and is currently limited to the
+Workers template with `--frontend none`; that template still runs unchanged
+through ASGI for local and fallback verification. The generator creates no
+anonymous mode or default superuser. Operators are an explicit
+case-insensitive email allowlist, records are scoped to the Access subject,
+mutations require an exact configured Origin, and audit rows never contain
+submitted values.
+
+All 52 supported backend compositions are generated, dependency resolved, and
+imported in CI. Invalid combinations fail before the destination directory is
+written; for example, admin rejects an explicit `--auth none` and every
+unreviewed frontend composition.
 
 ## Frontends
 
@@ -127,6 +135,21 @@ digest as JSON evidence.
 - explicit secret, identity, CORS, abuse, observability, migration, and rollout
   checks in `PRODUCTION.md`.
 
+Admin remains opt-in on the production preset:
+
+```sh
+uvx create-hayate my-app \
+  --template workers \
+  --preset production \
+  --with admin
+```
+
+Until `hayate-admin` and `hayate-htmx` complete their first PyPI publication,
+the admin profile copies unmodified MIT-licensed snapshots of reviewed commits
+into the generated source tree. This avoids floating branches and
+Pywrangler's VCS-lock limitation; exact commits and licenses are recorded
+under `admin/`.
+
 Local CI drives the generated preset over both real ASGI HTTP and real workerd.
 The workerd path applies a real D1 migration, writes through the HTTP API, and
 reads the same authenticated data through MCP.
@@ -136,7 +159,7 @@ reads the same authenticated data through MCP.
 - **Zero-dependency CLI.** Generation uses only the standard library and
   bundled, versioned components; it performs no network fetch.
 - **Small composition surface.** One base app, one Workers runtime overlay,
-  three feature components, and explicit auth/production components replace
+  four feature components, and explicit auth/production components replace
   copied full-template combinations.
 - **Orthogonal frontend ownership.** Runtime and backend features compose
   first; one frontend overlay may add only non-colliding files. htmx calls the
@@ -154,7 +177,7 @@ reads the same authenticated data through MCP.
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.6.x).** Generated projects pin released compatibility
+> **Status: alpha (0.8.x).** Generated projects pin released compatibility
 > lines. Public APIs may still move before 1.0.
 
 ## License

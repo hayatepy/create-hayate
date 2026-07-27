@@ -4,6 +4,27 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.8.0] - 2026-07-28
+
+### Added
+
+- Add an opt-in `admin` feature that composes checked SQL and Cloudflare
+  Access into an explicit identity-scoped operations UI with bounded
+  search/sort/paging and persistent redacted object history.
+- Generate exact operator allowlist and Origin trust boundaries, SQLite and D1
+  audit storage, direct security/CRUD tests, an optional Chromium gate, and
+  real-workerd bundle and mutation evidence.
+- Bundle unmodified, commit-pinned, MIT-license-preserving `hayate-admin` 0.1
+  and `hayate-htmx` 0.2 sources until their first PyPI publications make a
+  normal portable Workers lock possible.
+
+### Changed
+
+- Expand the backend feature matrix from 42 to 52 reviewed compositions while
+  retaining admin as an explicit production-preset opt-in.
+- Use a first-primary D1 session for sequential storage reads and apply every
+  ordered SQLite migration in generated SQL projects.
+
 ## [0.7.2] - 2026-07-27
 
 ### Changed

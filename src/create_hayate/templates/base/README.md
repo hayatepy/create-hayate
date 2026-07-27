@@ -40,6 +40,8 @@ $openapi_readme
 
 $auth_readme
 
+$admin_readme
+
 $production_readme
 
 $frontend_readme

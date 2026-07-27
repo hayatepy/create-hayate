@@ -19,7 +19,7 @@ def _python(environment: Path) -> Path:
 
 
 def main_check() -> int:
-    names = sorted(FEATURES)
+    names = sorted(set(FEATURES) - {"admin"})
     combinations = [
         combination
         for size in range(len(names) + 1)
@@ -40,6 +40,7 @@ dependencies = [
   "hayate-mcp>=0.11,<0.12",
   "hayate-openapi>=0.7,<0.8",
   "hayate-sql>=0.1,<0.2",
+  "jinja2==3.1.6",
 ]
 """.lstrip(),
             encoding="utf-8",
@@ -72,6 +73,33 @@ dependencies = [
                     if main(arguments) != 0:
                         return 1
                     projects.append(root / project_name)
+
+            admin_optionals = ("mcp", "openapi")
+            admin_combinations = [
+                combination
+                for size in range(len(admin_optionals) + 1)
+                for combination in itertools.combinations(admin_optionals, size)
+            ]
+            for combination, entrypoint in itertools.product(
+                admin_combinations,
+                ("class", "global"),
+            ):
+                counter += 1
+                project_name = f"matrix-{counter}"
+                features = ",".join(("admin", *combination))
+                arguments = [
+                    project_name,
+                    "--template",
+                    "workers",
+                    "--with",
+                    features,
+                    "--no-input",
+                ]
+                if entrypoint == "global":
+                    arguments.extend(["--workers-entrypoint", "global"])
+                if main(arguments) != 0:
+                    return 1
+                projects.append(root / project_name)
 
             production = "matrix-production"
             if (
@@ -108,6 +136,25 @@ dependencies = [
             ):
                 return 1
             projects.append(root / production_global)
+
+            for entrypoint in ("class", "global"):
+                counter += 1
+                project_name = f"matrix-{counter}"
+                arguments = [
+                    project_name,
+                    "--template",
+                    "workers",
+                    "--preset",
+                    "production",
+                    "--with",
+                    "admin",
+                    "--no-input",
+                ]
+                if entrypoint == "global":
+                    arguments.extend(["--workers-entrypoint", "global"])
+                if main(arguments) != 0:
+                    return 1
+                projects.append(root / project_name)
         finally:
             os.chdir(original)
 

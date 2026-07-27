@@ -1,2 +1,3 @@
 ENVIRONMENT=local
 CORS_ORIGINS=http://localhost:3000
+$admin_dev_var_line

@@ -21,6 +21,7 @@ TEMPLATES: dict[str, str] = {
 }
 DEFAULT_TEMPLATE = "api"
 FEATURES: dict[str, str] = {
+    "admin": "fail-closed checked-SQL operations UI with persistent audit history",
     "openapi": "OpenAPI 3.1, Scalar docs, and typed-client export",
     "mcp": "MCP 2025-11-25 tools on the same application",
     "sql": "checked SQL contracts with SQLite and Cloudflare D1",
@@ -32,9 +33,11 @@ FRONTENDS: dict[str, str] = {
 DEFAULT_FRONTEND = "none"
 AUTHS = ("none", "cloudflare-access")
 PRESETS = ("production",)
-_FEATURE_ORDER = ("sql", "mcp", "openapi")
-_REGISTRATION_ORDER = ("access", "production", "mcp", "openapi", "htmx")
+_FEATURE_ORDER = ("sql", "admin", "mcp", "openapi")
+_PRODUCTION_FEATURES = frozenset({"sql", "mcp", "openapi"})
+_REGISTRATION_ORDER = ("access", "production", "admin", "mcp", "openapi", "htmx")
 _DEPENDENCIES = {
+    "admin": "jinja2==3.1.6",
     "openapi": "hayate-openapi>=0.7,<0.8",
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
@@ -195,6 +198,7 @@ def _render_tree(
     variables: dict[str, str],
     *,
     allow_overwrite: bool = True,
+    render_templates: bool = True,
 ) -> None:
     dest.mkdir(parents=True, exist_ok=True)
     for entry in src.iterdir():
@@ -207,6 +211,7 @@ def _render_tree(
                 target,
                 variables,
                 allow_overwrite=allow_overwrite,
+                render_templates=render_templates,
             )
         else:
             if target.exists() and not allow_overwrite:
@@ -217,7 +222,8 @@ def _render_tree(
                 target.write_bytes(entry.read_bytes())
                 continue
             text = entry.read_text(encoding="utf-8")
-            target.write_text(Template(text).substitute(variables), encoding="utf-8", newline="\n")
+            rendered = Template(text).substitute(variables) if render_templates else text
+            target.write_text(rendered, encoding="utf-8", newline="\n")
 
 
 def _choose_template() -> str:
@@ -266,19 +272,36 @@ def _build_plan(
         features.add("mcp")
     if frontend in {"react", "astro"}:
         features.add("openapi")
+    if "admin" in features:
+        features.add("sql")
 
     production = args.preset == "production"
     auth = args.auth
     if production:
         if template != "workers":
             parser.error("--preset production requires --template workers")
-        features.update(FEATURES)
+        features.update(_PRODUCTION_FEATURES)
         if auth not in (None, "cloudflare-access"):
             parser.error("--preset production requires --auth cloudflare-access")
+        auth = "cloudflare-access"
+    elif "admin" in features and auth is None:
         auth = "cloudflare-access"
     elif auth is None:
         auth = "none"
 
+    if "admin" in features:
+        if runtime != "workers":
+            parser.error(
+                "--with admin requires --template workers or mcp so the reviewed "
+                "Cloudflare Access and D1 production path is available"
+            )
+        if auth != "cloudflare-access":
+            parser.error("--with admin requires --auth cloudflare-access")
+        if frontend != "none":
+            parser.error(
+                "--with admin currently requires --frontend none; the operations UI "
+                "owns its own HTML boundary"
+            )
     if auth == "cloudflare-access" and runtime != "workers":
         parser.error(
             "--auth cloudflare-access requires --template workers; "
@@ -346,6 +369,7 @@ def _feature_registration(plan: ScaffoldPlan) -> tuple[str, str]:
 
 
 def _readme_sections(plan: ScaffoldPlan) -> dict[str, str]:
+    admin = "admin" in plan.features
     sql = "sql" in plan.features
     mcp = "mcp" in plan.features
     openapi = "openapi" in plan.features
@@ -429,6 +453,44 @@ Protected routes require Cloudflare Access identity. Local development accepts
 Access JWT signature, issuer, audience, expiry, type, subject, and email.
 Local trust is isolated to the ignored `.dev.vars`; every deploy configuration
 defaults to fail-closed production verification.
+"""
+    admin_section = ""
+    admin_production_checklist = ""
+    if admin:
+        admin_section = """
+## Operations admin
+
+Open `/admin` with a Cloudflare Access identity whose email is listed in
+`ADMIN_EMAILS`. The generated starter exposes only the current identity's
+TODO records, uses bounded checked-SQL search/sort/page queries, and stores
+redacted attempt/success/failure events in `admin_audit_events`.
+
+Local ASGI and `wrangler dev` authorize `developer@example.com`. Before
+deployment, replace `ADMIN_EMAILS`, `ADMIN_ALLOWED_ORIGINS` in
+`src/feature_admin.py`, and the example production origin together. There is
+no anonymous mode, default superuser, reflected table access, or generic SQL
+surface.
+
+`src/hayate_admin` and `src/hayate_htmx` are unmodified, license-preserving
+snapshots of the commits recorded in `admin/profile.toml`. They keep the
+generated Workers project runnable before the packages' first PyPI
+publication. Replace them with released dependencies only after updating and
+re-running the generated SQLite, browser, and workerd/D1 gates.
+
+Run the optional browser gate after installing Chromium:
+
+```sh
+uv run playwright install chromium
+HAYATE_ADMIN_BROWSER_TESTS=1 uv run pytest -m browser -q
+```
+"""
+        admin_production_checklist = """
+- Replace `ADMIN_EMAILS` with a reviewed, case-insensitive operator allowlist.
+- Replace `ADMIN_ALLOWED_ORIGINS` in `src/feature_admin.py` with the exact
+  HTTPS origin that serves `/admin`; keep it synchronized with the production
+  URL and exercise a rejected foreign origin.
+- Retain the append-only redacted `admin_audit_events` records according to
+  your incident-response and privacy policy.
 """
     production_section = ""
     if plan.production:
@@ -545,6 +607,8 @@ rendering; do not recreate Hayate business logic as Astro endpoints or actions.
         "mcp_readme": mcp_section.strip(),
         "openapi_readme": openapi_section.strip(),
         "auth_readme": auth_section.strip(),
+        "admin_readme": admin_section.strip(),
+        "admin_production_checklist": admin_production_checklist.strip(),
         "production_readme": production_section.strip(),
         "frontend_readme": frontend_section.strip(),
     }
@@ -571,7 +635,7 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
                 "workers-runtime-sdk>=1.6,<2",
             ]
         )
-    if plan.frontend == "htmx":
+    if plan.frontend == "htmx" or "admin" in plan.features:
         dev_dependencies.append("playwright>=1.54,<2")
 
     feature_imports, feature_registrations = _feature_registration(plan)
@@ -598,6 +662,9 @@ simple = { limit = 60, period = 60 }
 
     deploy_vars: list[str] = []
     production_env = ""
+    admin_production_vars = (
+        'ADMIN_EMAILS = "operator@example.com"' if "admin" in plan.features else ""
+    )
     if plan.auth == "cloudflare-access":
         deploy_vars.extend(
             [
@@ -606,6 +673,8 @@ simple = { limit = 60, period = 60 }
                 'ACCESS_AUD = "replace-with-your-access-application-audience"',
             ]
         )
+    if "admin" in plan.features:
+        deploy_vars.append('ADMIN_EMAILS = "developer@example.com"')
     if plan.production:
         deploy_vars.append('CORS_ORIGINS = "https://app.example.com"')
         production_env = f"""
@@ -614,6 +683,7 @@ ENVIRONMENT = "production"
 CORS_ORIGINS = "https://app.example.com"
 ACCESS_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
 ACCESS_AUD = "replace-with-your-access-application-audience"
+{admin_production_vars}
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -741,13 +811,24 @@ markers = [
   "browser: end-to-end smoke tests that require an installed Chromium browser",
 ]
 """.strip()
-            if plan.frontend == "htmx"
+            if plan.frontend == "htmx" or "admin" in plan.features
+            else ""
+        ),
+        "ruff_extend_exclude": (
+            'extend-exclude = ["src/hayate_admin", "src/hayate_htmx"]'
+            if "admin" in plan.features
             else ""
         ),
         "auth_headers": (
             '{"Cf-Access-Authenticated-User-Email": "developer@example.com"}'
             if plan.auth == "cloudflare-access"
             else "{}"
+        ),
+        "admin_local_env_line": (
+            ',\n    ADMIN_EMAILS="developer@example.com"' if "admin" in plan.features else ""
+        ),
+        "admin_dev_var_line": (
+            "ADMIN_EMAILS=developer@example.com" if "admin" in plan.features else ""
         ),
     }
     variables.update(_readme_sections(plan))
@@ -761,6 +842,14 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
         _render_tree(templates.joinpath("workers"), dest, variables)
     for feature in plan.features:
         _render_tree(templates.joinpath("features", feature), dest, variables)
+    if "admin" in plan.features:
+        _render_tree(
+            templates.joinpath("vendor", "admin"),
+            dest,
+            variables,
+            allow_overwrite=False,
+            render_templates=False,
+        )
     if plan.auth == "cloudflare-access":
         _render_tree(templates.joinpath("auth", "cloudflare-access"), dest, variables)
     if plan.production:
@@ -817,7 +906,7 @@ def main(argv: list[str] | None = None) -> int:
         "--with",
         dest="features",
         metavar="FEATURES",
-        help="comma-separated optional features: openapi,mcp,sql",
+        help="comma-separated optional features: admin,openapi,mcp,sql",
     )
     parser.add_argument(
         "--frontend",
