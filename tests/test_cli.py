@@ -122,7 +122,7 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
         ("api", (), '"hayate>=0.12.1,<0.13"'),
         ("workers", (), '"hayate>=0.12.1,<0.13"'),
         ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
-        ("api", ("--with", "openapi"), '"hayate-openapi>=0.5,<0.6"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.6,<0.7"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )
@@ -150,7 +150,10 @@ def test_openapi_feature_overlays_typed_todo_contracts(tmp_path, monkeypatch):
     minimal_api = (minimal / "src/todo_api.py").read_text(encoding="utf-8")
     typed_api = (typed / "src/todo_api.py").read_text(encoding="utf-8")
     assert "def _validated_todo_id" in minimal_api
-    assert "from hayate_openapi import Path, StdlibProvider, endpoint, validated" in typed_api
+    assert (
+        "from hayate_openapi import Constraints, Path, Query, StdlibProvider, endpoint, validated"
+    ) in typed_api
+    assert "Constraints(ge=1, le=100)" in typed_api
     assert "providers=_PROVIDERS" in typed_api
     assert 'Path(alias="id")' in typed_api
     assert "-> TodoResponse" in typed_api
@@ -530,7 +533,7 @@ def test_react_profile_generates_a_typed_same_origin_spa(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"hayate-openapi>=0.5,<0.6"' in project
+    assert '"hayate-openapi>=0.6,<0.7"' in project
     assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
         encoding="utf-8"
     )
@@ -614,7 +617,7 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"hayate-openapi>=0.5,<0.6"' in project
+    assert '"hayate-openapi>=0.6,<0.7"' in project
     assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
         encoding="utf-8"
     )

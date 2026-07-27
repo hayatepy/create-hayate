@@ -4,6 +4,13 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.7.1] - 2026-07-27
+
+### Changed
+
+- Generate new OpenAPI-enabled projects with `hayate-openapi` 0.6 and exercise
+  portable typed query constraints in the default TODO API.
+
 ## [0.7.0] - 2026-07-27
 
 ### Added
