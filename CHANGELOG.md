@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.11.1] - 2026-07-28
+
 ### Fixed
 
 - Preserve separate Emscripten and CPython `rpds-py` resolutions in generated
