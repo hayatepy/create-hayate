@@ -4,6 +4,12 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Keep the unrendered project manifest under a template-only filename so
+  GitHub dependency submission does not parse generator placeholders as a
+  real `pyproject.toml`.
+
 ## [0.11.1] - 2026-07-28
 
 ### Fixed
