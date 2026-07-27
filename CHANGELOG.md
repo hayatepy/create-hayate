@@ -37,6 +37,12 @@ All notable changes to create-hayate are documented here.
 - Split TODO API registration into an overlay boundary so optional features
   can improve transport contracts without duplicating the application shell.
 
+### Fixed
+
+- Keep the generated Chromium smoke strict while accepting the one
+  `net::ERR_ABORTED` signal produced when the completed SSE demo deliberately
+  closes its `EventSource`.
+
 ## [0.5.1] - 2026-07-27
 
 ### Fixed
