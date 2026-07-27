@@ -91,7 +91,7 @@ reads the same authenticated data through MCP.
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.4.x).** Generated projects pin released compatibility
+> **Status: alpha (0.5.x).** Generated projects pin released compatibility
 > lines. Public APIs may still move before 1.0.
 
 ## License
