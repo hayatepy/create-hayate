@@ -100,6 +100,10 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 - Astro profileは生成後のOpenAPI drift、TypeScript、静的build、private data非埋め込み監査、
   実Chromium CRUD/deep-link/custom 404、npm audit、実workerdのAPI-first routingと
   Cloudflare Static Assetsを固定する。
+- frontend compatibilityはpackaged JSONをCLI allow-listとCIの単一source of truthにする。
+  重複するimplicit featureを除いた112構成を、PRではwheel由来の6 boundary case、週次/手動では
+  12 shardのfull matrixとして検証する。各caseはcomposition/phase/command/toolchain/wheel digest/
+  timingをJSON evidenceに残し、失敗名だけで構成とphaseを特定できるようにする。
 - 本体の新リリース時にテンプレートの hayate バージョンを上げる(Renovate 等は使わず
   リリースチェックリストに載せる。依存が hayate だけなので手動で足りる)。
 

@@ -31,7 +31,7 @@ async def test_mcp_2025_11_25_uses_request_identity_and_application_storage():
     assert (await initialized.json())["result"]["protocolVersion"] == "2025-11-25"
 
     created = await app.request(
-        "/todos",
+        "$api_prefix/todos",
         method="POST",
         headers=AUTH_HEADERS,
         json={"title": "visible through MCP"},

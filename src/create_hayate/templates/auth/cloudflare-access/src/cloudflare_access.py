@@ -11,7 +11,7 @@ from hayate import Context, HTTPException, Next
 
 _JWKS_TTL_SECONDS = 3600
 _JWKS_CACHE: dict[str, tuple[float, dict[str, dict[str, Any]]]] = {}
-_PUBLIC_PATHS = {"/health"}
+_PUBLIC_PATHS = {"$api_prefix/health"}
 
 
 class AccessDeniedError(Exception):

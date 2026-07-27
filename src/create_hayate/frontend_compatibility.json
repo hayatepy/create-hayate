@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "full_shards": 12,
+  "toolchains": {
+    "python_asgi": "3.14.6",
+    "python_workers": "3.13.11",
+    "node": "24.18.0",
+    "npm": "11.16.0",
+    "uv": "0.11.28"
+  },
+  "runtime_axes": {
+    "api": {
+      "auth": ["none"],
+      "entrypoints": ["class"]
+    },
+    "workers": {
+      "auth": ["none", "cloudflare-access"],
+      "entrypoints": ["class", "global"]
+    }
+  },
+  "profiles": {
+    "htmx": {
+      "description": "server-owned hypermedia UI",
+      "templates": ["api", "workers", "mcp"],
+      "required_features": [],
+      "optional_features": ["mcp", "openapi", "sql"]
+    },
+    "react": {
+      "description": "React single-page application with a Hayate API",
+      "templates": ["api", "workers", "mcp"],
+      "required_features": ["openapi"],
+      "optional_features": ["mcp", "sql"]
+    },
+    "astro": {
+      "description": "Astro static site with a Hayate API",
+      "templates": ["api", "workers", "mcp"],
+      "required_features": ["openapi"],
+      "optional_features": ["mcp", "sql"]
+    }
+  },
+  "smoke_ids": [
+    "htmx-api-none-class-base",
+    "htmx-workers-cloudflare-access-global-mcp-openapi-sql",
+    "react-api-none-class-openapi",
+    "react-workers-cloudflare-access-global-mcp-openapi-sql",
+    "astro-api-none-class-openapi",
+    "astro-workers-cloudflare-access-global-mcp-openapi-sql"
+  ],
+  "browser_ids": [
+    "htmx-api-none-class-base",
+    "react-api-none-class-openapi",
+    "astro-api-none-class-openapi"
+  ],
+  "workerd_ids": [
+    "htmx-workers-cloudflare-access-global-mcp-openapi-sql",
+    "react-workers-cloudflare-access-global-mcp-openapi-sql",
+    "astro-workers-cloudflare-access-global-mcp-openapi-sql"
+  ]
+}

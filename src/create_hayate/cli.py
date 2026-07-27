@@ -12,6 +12,8 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from string import Template
 
+from .frontend_compatibility import FRONTEND_PROFILES, supports_frontend_plan
+
 TEMPLATES: dict[str, str] = {
     "api": "TODO API + pytest, served by uvicorn",
     "workers": "the same app on Cloudflare Python Workers",
@@ -25,9 +27,7 @@ FEATURES: dict[str, str] = {
 }
 FRONTENDS: dict[str, str] = {
     "none": "backend-only project (compatibility default)",
-    "htmx": "server-owned hypermedia UI",
-    "react": "React single-page application with a Hayate API",
-    "astro": "Astro static or hybrid site with a Hayate API",
+    **{frontend: profile.description for frontend, profile in FRONTEND_PROFILES.items()},
 }
 DEFAULT_FRONTEND = "none"
 AUTHS = ("none", "cloudflare-access")
@@ -46,7 +46,109 @@ _FRONTEND_DEPENDENCIES = {
     "react": (),
     "astro": (),
 }
-_FRONTEND_TEMPLATES = {frontend: frozenset(TEMPLATES) for frontend in FRONTENDS}
+_MCP_OPENAPI_PATHS = """,
+    "/mcp": {
+      "get": {
+        "operationId": "get_mcp",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_mcp",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "delete_mcp",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        }
+      }
+    }"""
+_MCP_SCHEMA_PATH = """
+    "/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_mcp"];
+        put?: never;
+        post: operations["post_mcp"];
+        delete: operations["delete_mcp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };"""
+_MCP_SCHEMA_OPERATIONS = """
+    get_mcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    post_mcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_mcp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };"""
+_FRONTEND_TEMPLATES = {
+    "none": frozenset(TEMPLATES),
+    **{frontend: frozenset(profile.templates) for frontend, profile in FRONTEND_PROFILES.items()},
+}
 
 # One name serves as directory, distribution, and Workers service name,
 # so enforce the strictest of the three.
@@ -196,6 +298,20 @@ def _build_plan(
         )
 
     ordered = tuple(feature for feature in _FEATURE_ORDER if feature in features)
+    if not supports_frontend_plan(
+        frontend=frontend,
+        template=template,
+        features=ordered,
+        auth=auth,
+        entrypoint=args.workers_entrypoint,
+        production=production,
+    ):
+        feature_label = ",".join(ordered) if ordered else "none"
+        parser.error(
+            "unsupported or untested frontend composition: "
+            f"template={template}, frontend={frontend}, features={feature_label}, "
+            f"auth={auth}, workers-entrypoint={args.workers_entrypoint}"
+        )
     return ScaffoldPlan(
         template=template,
         runtime=runtime,
@@ -515,6 +631,9 @@ simple = {{ limit = 60, period = 60 }}
         "project_name": name,
         "frontend": plan.frontend,
         "api_prefix": "/api" if plan.frontend in {"htmx", "react", "astro"} else "",
+        "mcp_openapi_paths": _MCP_OPENAPI_PATHS if "mcp" in plan.features else "",
+        "mcp_schema_path": _MCP_SCHEMA_PATH if "mcp" in plan.features else "",
+        "mcp_schema_operations": (_MCP_SCHEMA_OPERATIONS if "mcp" in plan.features else ""),
         "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),

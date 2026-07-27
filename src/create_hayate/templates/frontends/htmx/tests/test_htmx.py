@@ -7,8 +7,10 @@ from urllib.parse import urlencode
 import pytest
 
 from app import app
+from tests.helpers import AUTH_HEADERS
 
 FORM_HEADERS = {
+    **AUTH_HEADERS,
     "content-type": "application/x-www-form-urlencoded",
     "origin": "http://localhost",
     "HX-Request": "true",
@@ -17,13 +19,16 @@ FORM_HEADERS = {
 
 @pytest.mark.asyncio
 async def test_page_fragment_crud_validation_and_shared_api():
-    page = await app.request("/app")
+    page = await app.request("/app", headers=AUTH_HEADERS)
     assert page.status == 200
     assert (await page.text()).startswith("<!doctype html>")
     assert page.headers.get("content-security-policy") is not None
     assert page.headers.get("cache-control") == "private, no-store"
 
-    fragment = await app.request("/app", headers={"HX-Request": "true"})
+    fragment = await app.request(
+        "/app",
+        headers={**AUTH_HEADERS, "HX-Request": "true"},
+    )
     assert (await fragment.text()).startswith('<section id="todo-list"')
     assert fragment.headers.get("vary") == (
         "HX-Request, HX-History-Restore-Request, HX-Request-Type"
@@ -51,14 +56,14 @@ async def test_page_fragment_crud_validation_and_shared_api():
     assert "&lt;img" in created_html
     assert "<img" not in created_html
 
-    listed = await app.request("/api/todos")
+    listed = await app.request("/api/todos", headers=AUTH_HEADERS)
     todos = await listed.json()
     todo = next(item for item in todos if item["title"] == unsafe_title)
     todo_id = todo["id"]
 
     edit = await app.request(
         f"/app/todos/{todo_id}/edit",
-        headers={"HX-Request": "true"},
+        headers={**AUTH_HEADERS, "HX-Request": "true"},
     )
     assert 'value="&lt;img' in await edit.text()
 
@@ -101,24 +106,28 @@ async def test_history_identity_assets_and_stream():
     restored = await app.request(
         "/app",
         headers={
+            **AUTH_HEADERS,
             "HX-Request": "true",
             "HX-History-Restore-Request": "true",
         },
     )
     assert (await restored.text()).startswith("<!doctype html>")
 
-    identity = await app.request("/auth")
+    identity = await app.request("/auth", headers=AUTH_HEADERS)
     assert identity.status == 200
     assert "Request identity" in await identity.text()
 
-    asset = await app.request("/assets/vendor/htmx-2.0.10.min.js")
+    asset = await app.request(
+        "/assets/vendor/htmx-2.0.10.min.js",
+        headers=AUTH_HEADERS,
+    )
     assert asset.status == 200
     assert asset.headers.get("cache-control") == "public, max-age=31536000, immutable"
     assert hashlib.sha256(await asset.bytes()).hexdigest() == (
         "71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de"
     )
 
-    stream = await app.request("/app/stream")
+    stream = await app.request("/app/stream", headers=AUTH_HEADERS)
     body = await stream.text()
     assert stream.headers.get("content-type") == "text/event-stream"
     assert 'event: token\ndata: {"token":"Hayate"}' in body

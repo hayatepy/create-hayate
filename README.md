@@ -3,6 +3,7 @@
 > **Hayate ecosystem:** [Start here](https://github.com/hayatepy/.github/blob/main/docs/START.md)
 > · [Production golden app](https://github.com/hayatepy/golden-app)
 > · [Tested compatibility](https://github.com/hayatepy/.github/blob/main/docs/COMPATIBILITY.md)
+> · [Frontend matrix](docs/FRONTEND_COMPATIBILITY.md)
 
 Composable, production-oriented project scaffolding for
 [hayate](https://github.com/hayatepy/hayate).
@@ -105,7 +106,13 @@ and real-workerd routing. Astro SSR remains an explicit, adapter-backed BFF
 extension rather than part of the initial runtime.
 
 Non-`none` profiles are rejected with the production preset until each profile
-has a reviewed production contract.
+has a reviewed production contract. The data-backed
+[frontend compatibility matrix](docs/FRONTEND_COMPATIBILITY.md) is also the
+CLI allow-list: pull requests exercise six boundary compositions from a built
+wheel, while weekly and manual runs cover all 112 unique supported
+runtime/frontend/auth/feature/entrypoint compositions in deterministic shards.
+Each run publishes phase-level commands, exact tool versions, and the wheel
+digest as JSON evidence.
 
 ## Production preset
 
@@ -141,8 +148,8 @@ reads the same authenticated data through MCP.
 - **Feature-complete Workers default.** `WorkerEntrypoint` remains the default.
   HTTP-only services can explicitly request `--workers-entrypoint global`.
 - **Evidence over claims.** CI runs unit tests, every dependency composition,
-  real ASGI, real workerd, D1 migrations, MCP, workflow audit, and dependency
-  audit.
+  wheel-based frontend compatibility, real ASGI, real workerd, D1 migrations,
+  MCP, workflow audit, and dependency audit.
 
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).

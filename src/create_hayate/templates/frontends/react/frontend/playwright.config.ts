@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const backendPort = process.env.HAYATE_E2E_BACKEND_PORT || "8000";
+const frontendPort = process.env.HAYATE_E2E_FRONTEND_PORT || "5173";
+const backendOrigin = `http://127.0.0.1:$${backendPort}`;
+const frontendOrigin = `http://127.0.0.1:$${frontendPort}`;
+const isolated = process.env.HAYATE_E2E_ISOLATED === "1";
+
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
@@ -7,7 +13,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: frontendOrigin,
     trace: "on-first-retry",
   },
   projects: [
@@ -19,15 +25,16 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "uv run --project .. uvicorn app:app --app-dir ../src --host 127.0.0.1 --port 8000",
-      url: "http://127.0.0.1:8000/api/health",
-      reuseExistingServer: !process.env.CI,
+        `uv run --project .. uvicorn app:app --app-dir ../src --host 127.0.0.1 --port $${backendPort}`,
+      url: `$${backendOrigin}/api/health`,
+      reuseExistingServer: !process.env.CI && !isolated,
       timeout: 120_000,
     },
     {
-      command: "npm run dev",
-      url: "http://127.0.0.1:5173",
-      reuseExistingServer: !process.env.CI,
+      command: `npm run dev -- --port $${frontendPort}`,
+      url: frontendOrigin,
+      env: { HAYATE_DEV_ORIGIN: backendOrigin },
+      reuseExistingServer: !process.env.CI && !isolated,
       timeout: 120_000,
     },
   ],

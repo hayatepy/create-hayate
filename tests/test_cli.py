@@ -201,6 +201,7 @@ def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
     launcher = _load_workers_launcher(
         _generate(tmp_path, monkeypatch, template="workers"),
     )
+    monkeypatch.setenv("UV_PYTHON", "3.13.11")
     monkeypatch.setattr(launcher, "_node_version", lambda: "v24.18.0")
     monkeypatch.setattr(launcher.shutil, "which", lambda name: f"/bin/{name}")
     observed = {}
@@ -215,6 +216,7 @@ def test_workers_launcher_uses_node_compatibility_shim(tmp_path, monkeypatch):
     assert launcher.main(["dev"]) == 0
     environment = observed["environment"]
     assert observed["command"] == ["/bin/pywrangler", "dev"]
+    assert "UV_PYTHON" not in environment
     assert environment["CREATE_HAYATE_REAL_NODE"] == "/bin/node"
     shim_dir = Path(environment["PATH"].split(launcher.os.pathsep)[0])
     assert shim_dir.name.startswith("create-hayate-node-")
@@ -560,6 +562,12 @@ def test_react_profile_generates_a_typed_same_origin_spa(
     document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
     assert '"title": "demo-app"' in document
     assert '"/api/todos"' in document
+    playwright = (dest / "frontend/playwright.config.ts").read_text(encoding="utf-8")
+    vite = (dest / "frontend/vite.config.ts").read_text(encoding="utf-8")
+    assert "HAYATE_E2E_BACKEND_PORT" in playwright
+    assert "HAYATE_E2E_FRONTEND_PORT" in playwright
+    assert "reuseExistingServer: !process.env.CI && !isolated" in playwright
+    assert "process.env.HAYATE_DEV_ORIGIN" in vite
 
     wrangler = dest / "wrangler.toml"
     if template == "api":
@@ -644,6 +652,10 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
     assert '"title": "demo-app"' in document
     assert '"/api/todos"' in document
     assert '"/api/todos"' in schema
+    playwright = (dest / "frontend/playwright.config.ts").read_text(encoding="utf-8")
+    assert "HAYATE_E2E_BACKEND_PORT" in playwright
+    assert "HAYATE_E2E_FRONTEND_PORT" in playwright
+    assert "reuseExistingServer: !process.env.CI && !isolated" in playwright
 
     wrangler = dest / "wrangler.toml"
     if template == "api":
@@ -654,6 +666,27 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
         assert 'not_found_handling = "404-page"' in config
         assert 'html_handling = "auto-trailing-slash"' in config
         assert 'run_worker_first = ["/api/*"' in config
+
+
+@pytest.mark.parametrize("frontend", ["react", "astro"])
+def test_typed_frontend_contract_includes_optional_mcp_routes(
+    tmp_path,
+    monkeypatch,
+    frontend,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        extra_args=("--frontend", frontend, "--with", "mcp"),
+    )
+
+    document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
+    schema = (dest / "frontend/src/api/schema.d.ts").read_text(encoding="utf-8")
+    assert '"/mcp"' in document
+    assert '"/mcp"' in schema
+    assert "get_mcp" in schema
+    assert "post_mcp" in schema
+    assert "delete_mcp" in schema
 
 
 def test_frontend_overlay_collision_fails_without_overwriting(tmp_path):
