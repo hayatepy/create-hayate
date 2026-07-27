@@ -273,8 +273,17 @@ if [[ "${production_mode}" == true ]]; then
       "http://127.0.0.1:${port}/openapi.json"
   )"
   uv run python -c \
-    'import json,sys; document=json.loads(sys.argv[1]); assert document["openapi"] == "3.1.1"; assert "/todos" in document["paths"]' \
+    'import json,sys; document=json.loads(sys.argv[1]); operation=document["paths"]["/todos/{id}"]["get"]; assert document["openapi"] == "3.1.1"; assert operation["parameters"][0]["schema"] == {"type":"string","format":"uuid"}; assert operation["responses"]["200"]["content"]["application/json"]["schema"]["properties"]["id"] == {"type":"string","format":"uuid"}' \
     "${openapi}"
+  invalid_status="$(
+    curl --silent --show-error --output /dev/null --write-out "%{http_code}" --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/todos/not-a-uuid"
+  )"
+  if [[ "${invalid_status}" != "400" ]]; then
+    echo "expected malformed typed UUID to return 400; got ${invalid_status}" >&2
+    exit 1
+  fi
   curl --fail --silent --max-time 5 \
     "${auth_header[@]}" \
     "http://127.0.0.1:${port}/docs" >/dev/null

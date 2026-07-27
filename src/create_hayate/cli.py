@@ -35,7 +35,7 @@ PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
 _REGISTRATION_ORDER = ("access", "production", "mcp", "openapi", "htmx")
 _DEPENDENCIES = {
-    "openapi": "hayate-openapi>=0.4.2,<0.5",
+    "openapi": "hayate-openapi>=0.5,<0.6",
     "mcp": "hayate-mcp>=0.11,<0.12",
     "sql": "hayate-sql>=0.1,<0.2",
 }
@@ -278,6 +278,8 @@ identity context and SQL-backed storage as the HTTP API.
 ## API schema and typed client
 
 OpenAPI 3.1 JSON is served at `/openapi.json`; Scalar is served at `/docs`.
+TODO path parameters and responses use explicit typed runtime contracts; JSON
+body length constraints remain enforced from the same raw schema they expose.
 Export the schema and pinned TypeScript types with:
 
 ```sh

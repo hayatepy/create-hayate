@@ -45,7 +45,7 @@ uvx create-hayate my-app \
 
 | Feature | Generated boundary |
 |---|---|
-| `openapi` | OpenAPI 3.1.1, hardened Scalar, pinned TypeScript export |
+| `openapi` | Typed UUID/response contracts, OpenAPI 3.1.1, hardened Scalar, pinned TypeScript export |
 | `mcp` | MCP 2025-11-25 tools sharing request identity and storage |
 | `sql` | Migration-checked `hayate-sql`; SQLite on ASGI and D1 on Workers |
 | `--auth cloudflare-access` | Local explicit identity; production RS256/JWKS verification |
@@ -125,7 +125,7 @@ reads the same authenticated data through MCP.
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.5.x).** Generated projects pin released compatibility
+> **Status: alpha (0.6.x).** Generated projects pin released compatibility
 > lines. Public APIs may still move before 1.0.
 
 ## License
