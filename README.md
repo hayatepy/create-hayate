@@ -81,9 +81,10 @@ files. `htmx` generates autoescaping Jinja templates, identity-scoped CRUD,
 validation fragments, history restoration, SSE, CSP/CSRF/cache defaults,
 browser smoke tests, and a checksum-verified self-hosted htmx 2.0.10 asset.
 ASGI serves that asset through Hayate; Workers uses Cloudflare Static Assets
-with the same same-origin URLs. Until `hayate-htmx` is published, ASGI pins
-its immutable release-gate Git commit and Workers bundles the same small
-source snapshot to work around Pywrangler's VCS-lock installation gap.
+with the same same-origin URLs. ASGI installs the published
+`hayate-htmx>=0.1,<0.2` release. Workers bundles the reviewed 0.1 source
+snapshot because its Python bundle is assembled across the Pywrangler/Pyodide
+boundary instead of installing the wheel at runtime.
 
 `react` generates a pinned Node 24/Vite/React Router application in
 `frontend/`. It enables Hayate OpenAPI automatically, keeps JSON below `/api`,
