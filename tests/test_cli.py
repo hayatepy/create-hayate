@@ -335,9 +335,9 @@ def test_admin_feature_generates_a_fail_closed_sql_and_access_profile(
     assert 'ADMIN_EMAILS = "developer@example.com"' in (dest / "wrangler.toml").read_text(
         encoding="utf-8"
     )
-    assert "eddd6213d1ebcd98d9b54a89fde883a349484ba0" in (dest / "admin/profile.toml").read_text(
-        encoding="utf-8"
-    )
+    admin_profile = (dest / "admin/profile.toml").read_text(encoding="utf-8")
+    assert 'hayate_admin_version = "0.2.0"' in admin_profile
+    assert "2fdc1c6349308157f1cbea0ac1aff11a42c0d023" in admin_profile
 
 
 def test_admin_source_snapshot_is_copied_verbatim(tmp_path, monkeypatch):

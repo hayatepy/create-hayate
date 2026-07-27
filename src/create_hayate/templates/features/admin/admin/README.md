@@ -2,8 +2,8 @@
 
 This directory records the immutable upstream sources copied into
 `src/hayate_admin` and `src/hayate_htmx`. They are included because
-Pywrangler cannot install VCS records into its portable Workers lock and the
-packages have not completed their first PyPI publication.
+Pywrangler cannot install VCS records into its portable Workers lock while
+preserving the generator's offline, zero-network behavior.
 
 The snapshots are unmodified. Their MIT licenses are preserved in this
 directory. Do not update a commit without regenerating the snapshots and

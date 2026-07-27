@@ -144,11 +144,10 @@ uvx create-hayate my-app \
   --with admin
 ```
 
-Until `hayate-admin` and `hayate-htmx` complete their first PyPI publication,
-the admin profile copies unmodified MIT-licensed snapshots of reviewed commits
-into the generated source tree. This avoids floating branches and
-Pywrangler's VCS-lock limitation; exact commits and licenses are recorded
-under `admin/`.
+The admin profile copies unmodified MIT-licensed snapshots of reviewed,
+released commits into the generated source tree. This preserves offline,
+zero-network generation and avoids floating branches and Pywrangler's
+VCS-lock limitation; exact commits and licenses are recorded under `admin/`.
 
 Local CI drives the generated preset over both real ASGI HTTP and real workerd.
 The workerd path applies a real D1 migration, writes through the HTTP API, and
@@ -177,7 +176,7 @@ reads the same authenticated data through MCP.
 The internal design memo (Japanese, per project convention) is
 [DESIGN.md](DESIGN.md); release history is in [CHANGELOG.md](CHANGELOG.md).
 
-> **Status: alpha (0.8.x).** Generated projects pin released compatibility
+> **Status: alpha (0.9.x).** Generated projects pin released compatibility
 > lines. Public APIs may still move before 1.0.
 
 ## License

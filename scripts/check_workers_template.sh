@@ -350,13 +350,26 @@ if [[ "${admin_mode}" == true ]]; then
   admin_list="$(
     curl --fail --silent --max-time 5 \
       "${auth_header[@]}" \
-      "http://127.0.0.1:${port}/admin/todos?q=generated"
+      "http://127.0.0.1:${port}/admin/todos?view=title-a-z&q=generated"
   )"
   if [[ "${admin_list}" != *"generated admin worker"* ]]; then
     echo "admin list did not expose the created identity-scoped record" >&2
     exit 1
   fi
-  echo "contract[${template}].admin=authorized,origin-checked,audited"
+  admin_csv="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/admin/todos/export.csv?view=title-a-z&q=generated"
+  )"
+  if [[ "${admin_csv}" != *"generated admin worker"* ]]; then
+    echo "admin CSV did not expose the bounded identity-scoped record" >&2
+    exit 1
+  fi
+  if [[ "${admin_list}" != *'aria-current="page">Title A-Z'* ]]; then
+    echo "admin list did not apply the static saved view" >&2
+    exit 1
+  fi
+  echo "contract[${template}].admin=authorized,origin-checked,audited,saved-view,cursor,csv"
   if [[ "${production_mode}" != true ]]; then
     exit 0
   fi

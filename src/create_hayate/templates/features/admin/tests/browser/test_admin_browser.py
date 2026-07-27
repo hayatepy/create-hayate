@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 import pytest_asyncio
@@ -72,8 +73,10 @@ async def test_generated_admin_browser_crud_search_history_and_delete(page: Page
     page.on("pageerror", lambda error: page_errors.append(str(error)))
     page.on(
         "requestfailed",
-        lambda request: request_failures.append(
-            f"{request.method} {request.url}: {request.failure}"
+        lambda request: (
+            request_failures.append(f"{request.method} {request.url}: {request.failure}")
+            if "/export.csv" not in request.url
+            else None
         ),
     )
 
@@ -85,9 +88,20 @@ async def test_generated_admin_browser_crud_search_history_and_delete(page: Page
     await expect(page.get_by_role("heading", name="Browser-managed TODO")).to_be_visible()
     await page.get_by_role("link", name="Back to TODOs").click()
 
+    await page.get_by_role("link", name="Title A-Z").click()
+    await expect(page.get_by_role("link", name="Title A-Z")).to_have_attribute(
+        "aria-current",
+        "page",
+    )
     await page.get_by_label("Search").fill("Browser-managed")
     await page.get_by_role("button", name="Apply", exact=True).click()
     await expect(page.locator("tbody tr")).to_have_count(1)
+    async with page.expect_download() as download_info:
+        await page.get_by_role("link", name="Export CSV").click()
+    download = await download_info.value
+    assert download.suggested_filename == "todos.csv"
+    download_path = await download.path()
+    assert "Browser-managed TODO" in Path(download_path).read_text(encoding="utf-8")
     await page.get_by_role("link", name="Edit").click()
     await page.get_by_label("Title").fill("Browser-shipped TODO")
     await page.get_by_label("Done").check()

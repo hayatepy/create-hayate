@@ -1,3 +1,6 @@
+import html
+import re
+
 import pytest
 
 from app import app
@@ -88,3 +91,54 @@ async def test_admin_crud_is_owner_scoped_origin_checked_and_audited():
         body="",
     )
     assert deleted.status == 303
+
+
+@pytest.mark.asyncio
+async def test_admin_saved_view_cursor_and_csv_are_bounded_and_owner_scoped():
+    for title in ("Cursor-C", "Cursor-A", "Cursor-B"):
+        created = await app.request(
+            "/todos",
+            method="POST",
+            headers={**OPERATOR, "content-type": "application/json"},
+            json={"title": title},
+        )
+        assert created.status == 201
+
+    first = await app.request(
+        "/admin/todos?view=title-a-z&q=Cursor-",
+        headers=OPERATOR,
+    )
+    first_html = await first.text()
+    assert first.status == 200
+    assert "Title A-Z" in first_html
+    assert "Cursor-A" in first_html
+    assert "Cursor-B" in first_html
+    assert "Cursor-C" not in first_html
+    next_match = re.search(r'href="([^"]*cursor=[^"]+)"[^>]*>Next</a>', first_html)
+    assert next_match is not None
+
+    second = await app.request(html.unescape(next_match.group(1)), headers=OPERATOR)
+    second_html = await second.text()
+    assert second.status == 200
+    assert "Cursor-A" not in second_html
+    assert "Cursor-B" not in second_html
+    assert "Cursor-C" in second_html
+
+    cross_site = await app.request(
+        "/admin/todos/export.csv?view=title-a-z&q=Cursor-",
+        headers={**OPERATOR, "sec-fetch-site": "cross-site"},
+    )
+    assert cross_site.status == 403
+
+    exported = await app.request(
+        "/admin/todos/export.csv?view=title-a-z&q=Cursor-",
+        headers=OPERATOR,
+    )
+    csv_body = await exported.text()
+    assert exported.status == 200
+    assert exported.headers.get("content-disposition") == ('attachment; filename="todos.csv"')
+    assert csv_body.startswith("ID,Title,Done\r\n")
+    assert "Cursor-A" in csv_body
+    assert "Cursor-B" in csv_body
+    assert "Cursor-C" in csv_body
+    assert "viewer private record" not in csv_body
