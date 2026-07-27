@@ -324,7 +324,8 @@ for _ in {1..20}; do
       --output "${warmup_file}" \
       --write-out "%{http_code}" \
       "${auth_header[@]}" \
-      "http://127.0.0.1:${port}${canonicalize_path}"
+      "http://127.0.0.1:${port}${canonicalize_path}" \
+      || true
   )"
   if [[ "${warmup_status}" == "200" ]]; then
     break
@@ -345,7 +346,8 @@ canonicalized_status="$(
     --write-out "%{http_code}" \
     "${auth_header[@]}" \
     -H "x-request-id: generated-workerd-smoke" \
-    "http://127.0.0.1:${port}${canonicalize_path}?access_token=must-not-be-logged"
+    "http://127.0.0.1:${port}${canonicalize_path}?access_token=must-not-be-logged" \
+    || true
 )"
 if [[ "${canonicalized_status}" != "200" ]]; then
   tail -n 250 "${log_file}" >&2
@@ -361,7 +363,9 @@ uv run python -c \
   "${canonicalized}"
 request_log_line=""
 for _ in {1..20}; do
-  request_log_line="$(grep -F '"request_id":"generated-workerd-smoke"' "${log_file}" | tail -1)"
+  request_log_line="$(
+    grep -F '"request_id":"generated-workerd-smoke"' "${log_file}" | tail -1 || true
+  )"
   if [[ -n "${request_log_line}" ]]; then
     break
   fi
