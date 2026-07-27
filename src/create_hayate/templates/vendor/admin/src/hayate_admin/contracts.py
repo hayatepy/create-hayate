@@ -20,8 +20,10 @@ type AdminAction = Literal[
     "resource:change",
     "resource:delete",
     "resource:bulk",
+    "resource:export",
     "resource:history",
 ]
+type PaginationMode = Literal["offset", "cursor"]
 type FieldKind = Literal[
     "text",
     "email",
@@ -41,6 +43,7 @@ type FieldValidator = Callable[[object], str | None]
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
 _SLUG = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
 _SRI = re.compile(r"^sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}$")
+_OPAQUE_CURSOR = re.compile(r"^[A-Za-z0-9._~-]{1,1536}$")
 _FIELD_KINDS = frozenset(
     {
         "text",
@@ -54,6 +57,10 @@ _FIELD_KINDS = frozenset(
         "datetime-local",
     }
 )
+
+
+class AdminCursorError(ValueError):
+    """Signal that a repository rejected an otherwise valid cursor envelope."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +228,8 @@ class ListQuery:
     descending: bool
     offset: int
     limit: int
+    cursor: str | None = None
+    saved_view: str | None = None
 
     def __post_init__(self) -> None:
         if self.search is not None and (not isinstance(self.search, str) or len(self.search) > 200):
@@ -239,6 +248,16 @@ class ListQuery:
             or not 1 <= self.limit <= 100
         ):
             raise ValueError("admin limit must be in 1-100")
+        if self.cursor is not None and (
+            not isinstance(self.cursor, str) or not _OPAQUE_CURSOR.fullmatch(self.cursor)
+        ):
+            raise ValueError("admin cursor must be a bounded URL-safe token")
+        if self.cursor is not None and self.offset != 0:
+            raise ValueError("admin cursor queries cannot include an offset")
+        if self.saved_view is not None and (
+            not isinstance(self.saved_view, str) or not _SLUG.fullmatch(self.saved_view)
+        ):
+            raise ValueError("admin saved_view must be a safe slug")
         if self.order_by is not None and not _IDENTIFIER.fullmatch(self.order_by):
             raise ValueError("admin order_by must be a safe field identifier")
         if any(
@@ -271,6 +290,163 @@ class Page:
         if self.total < len(self.items):
             raise ValueError("admin page total cannot be smaller than its item count")
         object.__setattr__(self, "items", tuple(self.items))
+
+
+@dataclass(frozen=True, slots=True)
+class CursorPage:
+    """One forward-only page with a repository-owned opaque continuation."""
+
+    items: Sequence[Record]
+    next_cursor: str | None
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.items, Sequence)
+            or isinstance(self.items, (str, bytes))
+            or any(not isinstance(item, Mapping) for item in self.items)
+        ):
+            raise ValueError("admin cursor page items must be a sequence of records")
+        if self.next_cursor is not None and (
+            not isinstance(self.next_cursor, str) or not _OPAQUE_CURSOR.fullmatch(self.next_cursor)
+        ):
+            raise ValueError("admin next cursor must be a bounded URL-safe token")
+        object.__setattr__(self, "items", tuple(self.items))
+
+
+@dataclass(frozen=True, slots=True)
+class AdminSavedView:
+    """One named, static composition of existing allowlisted list controls."""
+
+    slug: str
+    label: str
+    search: str | None = None
+    filters: Mapping[str, str] = dataclass_field(default_factory=dict)
+    order_by: str | None = None
+    descending: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.slug, str) or not _SLUG.fullmatch(self.slug):
+            raise ValueError(f"unsafe admin saved view slug: {self.slug!r}")
+        if not isinstance(self.label, str) or not self.label or len(self.label) > 120:
+            raise ValueError(f"{self.slug}: saved view label must be 1-120 characters")
+        if self.search is not None and (
+            not isinstance(self.search, str) or not self.search or len(self.search) > 200
+        ):
+            raise ValueError(f"{self.slug}: saved view search must be 1-200 characters")
+        if not isinstance(self.filters, Mapping) or any(
+            not isinstance(name, str)
+            or not _IDENTIFIER.fullmatch(name)
+            or not isinstance(value, str)
+            or not value
+            or len(value) > 255
+            for name, value in self.filters.items()
+        ):
+            raise ValueError(f"{self.slug}: saved view filters must be bounded safe values")
+        if self.order_by is not None and (
+            not isinstance(self.order_by, str) or not _IDENTIFIER.fullmatch(self.order_by)
+        ):
+            raise ValueError(f"{self.slug}: saved view order_by must be a safe field")
+        if not isinstance(self.descending, bool):
+            raise ValueError(f"{self.slug}: saved view descending must be a boolean")
+        if self.descending and self.order_by is None:
+            raise ValueError(f"{self.slug}: descending requires order_by")
+        object.__setattr__(self, "filters", MappingProxyType(dict(self.filters)))
+
+
+@dataclass(frozen=True, slots=True)
+class ExportQuery:
+    """Allowlisted export controls passed only to an explicit export callback."""
+
+    search: str | None
+    filters: Mapping[str, str]
+    order_by: str | None
+    descending: bool
+    limit: int
+    saved_view: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.search is not None and (not isinstance(self.search, str) or len(self.search) > 200):
+            raise ValueError("admin export search must not exceed 200 characters")
+        if not isinstance(self.filters, Mapping) or any(
+            not isinstance(name, str)
+            or not _IDENTIFIER.fullmatch(name)
+            or not isinstance(value, str)
+            or len(value) > 255
+            for name, value in self.filters.items()
+        ):
+            raise ValueError("admin export filters must contain bounded safe field values")
+        if self.order_by is not None and (
+            not isinstance(self.order_by, str) or not _IDENTIFIER.fullmatch(self.order_by)
+        ):
+            raise ValueError("admin export order_by must be a safe field identifier")
+        if not isinstance(self.descending, bool):
+            raise ValueError("admin export descending must be a boolean")
+        if (
+            not isinstance(self.limit, int)
+            or isinstance(self.limit, bool)
+            or not 1 <= self.limit <= 10_001
+        ):
+            raise ValueError("admin export limit must be in 1-10001")
+        if self.saved_view is not None and (
+            not isinstance(self.saved_view, str) or not _SLUG.fullmatch(self.saved_view)
+        ):
+            raise ValueError("admin export saved_view must be a safe slug")
+        object.__setattr__(self, "filters", MappingProxyType(dict(self.filters)))
+
+
+class CsvExportHandler(Protocol):
+    """Return already scoped records through an explicit application query path."""
+
+    def __call__(
+        self,
+        context: Context,
+        repository: AdminRepository,
+        query: ExportQuery,
+    ) -> Awaitable[Sequence[Record]]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class AdminCsvExport:
+    """Bounded, field-allowlisted CSV export policy for one resource."""
+
+    fields: tuple[str, ...]
+    handler: CsvExportHandler = dataclass_field(repr=False, compare=False)
+    label: str = "Export CSV"
+    filename: str = "export.csv"
+    max_rows: int = 1_000
+    max_bytes: int = 1_048_576
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.fields, tuple)
+            or not self.fields
+            or len(self.fields) > 64
+            or any(
+                not isinstance(name, str) or not _IDENTIFIER.fullmatch(name) for name in self.fields
+            )
+            or len(self.fields) != len(set(self.fields))
+        ):
+            raise ValueError("admin CSV fields must be unique safe identifiers")
+        if not callable(self.handler):
+            raise ValueError("admin CSV export handler must be callable")
+        if not isinstance(self.label, str) or not self.label or len(self.label) > 120:
+            raise ValueError("admin CSV export label must be 1-120 characters")
+        if not isinstance(self.filename, str) or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,119}\.csv", self.filename
+        ):
+            raise ValueError("admin CSV filename must be a bounded ASCII .csv name")
+        if (
+            not isinstance(self.max_rows, int)
+            or isinstance(self.max_rows, bool)
+            or not 1 <= self.max_rows <= 10_000
+        ):
+            raise ValueError("admin CSV max_rows must be in 1-10000")
+        if (
+            not isinstance(self.max_bytes, int)
+            or isinstance(self.max_bytes, bool)
+            or not 1_024 <= self.max_bytes <= 10 * 1024 * 1024
+        ):
+            raise ValueError("admin CSV max_bytes must be in 1024-10485760")
 
 
 @dataclass(frozen=True, slots=True)
@@ -544,7 +720,7 @@ class AdminInline:
 class AdminRepository(Protocol):
     """Storage operations normally implemented with generated hayate-sql calls."""
 
-    async def list(self, query: ListQuery) -> Page: ...
+    async def list(self, query: ListQuery) -> Page | CursorPage: ...
 
     async def get(self, object_id: str) -> Record | None: ...
 
@@ -655,6 +831,9 @@ class AdminResource:
     page_size: int = 50
     relationships: tuple[AdminRelationship, ...] = ()
     inlines: tuple[AdminInline, ...] = ()
+    pagination: PaginationMode = "offset"
+    saved_views: tuple[AdminSavedView, ...] = ()
+    csv_export: AdminCsvExport | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.slug, str) or not _SLUG.fullmatch(self.slug):
@@ -736,6 +915,42 @@ class AdminResource:
             or not 1 <= self.page_size <= 100
         ):
             raise ValueError(f"{self.slug}: page_size must be in 1-100")
+        if self.pagination not in ("offset", "cursor"):
+            raise ValueError(f"{self.slug}: pagination must be offset or cursor")
+        if not isinstance(self.saved_views, tuple) or any(
+            not isinstance(view, AdminSavedView) for view in self.saved_views
+        ):
+            raise ValueError(f"{self.slug}: saved_views must contain AdminSavedView values")
+        saved_view_slugs = [view.slug for view in self.saved_views]
+        if len(saved_view_slugs) != len(set(saved_view_slugs)):
+            raise ValueError(f"{self.slug}: saved view slugs must be unique")
+        searchable = {field.name for field in self.fields if field.searchable}
+        sortable = {field.name for field in self.fields if field.sortable}
+        filterable = {field.name: field for field in self.fields if field.filterable}
+        for view in self.saved_views:
+            if view.search is not None and not searchable:
+                raise ValueError(
+                    f"{self.slug}.{view.slug}: saved search requires searchable fields"
+                )
+            if view.order_by is not None and view.order_by not in sortable:
+                raise ValueError(f"{self.slug}.{view.slug}: saved sort must be allowlisted")
+            for name, value in view.filters.items():
+                admin_field = filterable.get(name)
+                if admin_field is None or value not in {
+                    choice for choice, _ in admin_field.choices
+                }:
+                    raise ValueError(
+                        f"{self.slug}.{view.slug}: saved filters must use allowlisted choices"
+                    )
+        if self.csv_export is not None and not isinstance(self.csv_export, AdminCsvExport):
+            raise ValueError(f"{self.slug}: csv_export must be an AdminCsvExport")
+        if self.csv_export is not None:
+            unknown_export_fields = set(self.csv_export.fields) - set(names)
+            if unknown_export_fields:
+                raise ValueError(
+                    f"{self.slug}: CSV export fields must be declared: "
+                    f"{sorted(unknown_export_fields)!r}"
+                )
 
     @property
     def field_map(self) -> Mapping[str, AdminField]:
@@ -753,6 +968,10 @@ class AdminResource:
     @property
     def bulk_action_map(self) -> Mapping[str, AdminBulkAction]:
         return MappingProxyType({action.slug: action for action in self.bulk_actions})
+
+    @property
+    def saved_view_map(self) -> Mapping[str, AdminSavedView]:
+        return MappingProxyType({view.slug: view for view in self.saved_views})
 
     @property
     def relationship_map(self) -> Mapping[str, AdminRelationship]:

@@ -20,6 +20,7 @@ from .contracts import (
     AdminResource,
     AuditHistoryPage,
     BulkActionResult,
+    CursorPage,
     InlineCollection,
     InlineOperation,
     ListQuery,
@@ -145,20 +146,31 @@ class AdminRenderer:
     def listing(
         self,
         resource: AdminResource,
-        page: Page,
+        page: Page | CursorPage,
         query: ListQuery,
         *,
         can_add: bool,
         can_change: bool,
         can_delete: bool,
+        can_export: bool,
         bulk_actions: Sequence[AdminBulkAction],
     ) -> str:
         list_fields = tuple(field for field in resource.fields if field.list_display)
+        saved_views = self._saved_views(resource, query)
         controls = self._list_controls(resource, query)
         create = ""
         if can_add:
             create_path = _path(self.prefix, resource, "create")
             create = f"<p>{_link(f'Add {resource.singular_label}', create_path)}</p>"
+        export = ""
+        if can_export and resource.csv_export is not None:
+            params = self._query_params(query)
+            query_string = "" if not params else f"?{urlencode(params)}"
+            export_path = f"{_path(self.prefix, resource, 'export.csv')}{query_string}"
+            export = (
+                f'<p><a href="{_e(export_path)}" rel="nofollow">'
+                f"{_e(resource.csv_export.label)}</a></p>"
+            )
 
         if not page.items:
             table = "<p>No matching records.</p>"
@@ -204,15 +216,47 @@ class AdminRenderer:
                     f"</fieldset>{table}</form>"
                 )
         pagination = self._pagination(resource, page, query)
+        if isinstance(page, CursorPage):
+            status = (
+                f"Showing {len(page.items)} record"
+                f"{'s' if len(page.items) != 1 else ''} on this cursor page."
+            )
+        else:
+            status = f"{page.total} matching record{'s' if page.total != 1 else ''}."
         return (
-            f"<h1>{_e(resource.label)}</h1>{create}{controls}"
-            f'<p role="status">{page.total} matching record{"s" if page.total != 1 else ""}.</p>'
+            f"<h1>{_e(resource.label)}</h1>{create}{export}{saved_views}{controls}"
+            f'<p role="status">{status}</p>'
             f"{table}{pagination}"
         )
+
+    def _saved_views(self, resource: AdminResource, query: ListQuery) -> str:
+        if not resource.saved_views:
+            return ""
+        links = [
+            _link(
+                "All records",
+                _path(self.prefix, resource),
+                current=query.saved_view is None,
+            )
+        ]
+        links.extend(
+            _link(
+                view.label,
+                f"{_path(self.prefix, resource)}?{urlencode({'view': view.slug})}",
+                current=query.saved_view == view.slug,
+            )
+            for view in resource.saved_views
+        )
+        return f'<nav aria-label="Saved views">{" · ".join(links)}</nav>'
 
     def _list_controls(self, resource: AdminResource, query: ListQuery) -> str:
         action = _path(self.prefix, resource)
         search = "" if query.search is None else query.search
+        saved_view = (
+            ""
+            if query.saved_view is None
+            else f'<input type="hidden" name="view" value="{_e(query.saved_view)}">'
+        )
         filters = []
         for field in resource.fields:
             if not field.filterable:
@@ -232,6 +276,7 @@ class AdminRenderer:
             f'<form method="get" action="{_e(action)}" hx-get="{_e(action)}" '
             'hx-target="#hayate-admin" hx-select="#hayate-admin" hx-swap="outerHTML" '
             'hx-push-url="true">'
+            f"{saved_view}"
             f'<label>Search<input type="search" name="q" value="{_e(search)}" '
             'maxlength="200"></label>'
             f'{"".join(filters)}<button type="submit">Apply</button></form>'
@@ -246,7 +291,10 @@ class AdminRenderer:
         if not field.sortable:
             return _e(field.label)
         descending = query.order_by == field.name and not query.descending
-        params = self._query_params(query, page=1)
+        params = self._query_params(
+            query,
+            page=1 if resource.pagination == "offset" else None,
+        )
         params["sort"] = field.name
         params["direction"] = "desc" if descending else "asc"
         href = f"{_path(self.prefix, resource)}?{urlencode(params)}"
@@ -325,7 +373,27 @@ class AdminRenderer:
             f"{failures}<p>{back}</p>"
         )
 
-    def _pagination(self, resource: AdminResource, page: Page, query: ListQuery) -> str:
+    def _pagination(
+        self,
+        resource: AdminResource,
+        page: Page | CursorPage,
+        query: ListQuery,
+    ) -> str:
+        if isinstance(page, CursorPage):
+            links = []
+            if query.cursor is not None:
+                params = self._query_params(query)
+                first = _path(self.prefix, resource)
+                if params:
+                    first = f"{first}?{urlencode(params)}"
+                links.append(_link("First", first))
+            if page.next_cursor is None:
+                links.append("<span>End of results</span>")
+            else:
+                params = self._query_params(query, cursor=page.next_cursor)
+                links.append(_link("Next", f"{_path(self.prefix, resource)}?{urlencode(params)}"))
+            return f'<nav aria-label="Cursor pagination">{" · ".join(links)}</nav>'
+
         page_count = max(1, math.ceil(page.total / query.limit))
         current = query.offset // query.limit + 1
         links = []
@@ -339,8 +407,19 @@ class AdminRenderer:
         return f'<nav aria-label="Pagination">{" · ".join(links)}</nav>'
 
     @staticmethod
-    def _query_params(query: ListQuery, *, page: int) -> dict[str, str]:
-        params = {"page": str(page)}
+    def _query_params(
+        query: ListQuery,
+        *,
+        page: int | None = None,
+        cursor: str | None = None,
+    ) -> dict[str, str]:
+        params = {}
+        if page is not None:
+            params["page"] = str(page)
+        if cursor is not None:
+            params["cursor"] = cursor
+        if query.saved_view is not None:
+            params["view"] = query.saved_view
         if query.search:
             params["q"] = query.search
         if query.order_by:

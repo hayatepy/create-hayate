@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import csv
+import hashlib
+import io
+import json
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from types import MappingProxyType
 from urllib.parse import quote, urlsplit
@@ -24,6 +30,8 @@ from .contracts import (
     AdminAction,
     AdminAsset,
     AdminBulkAction,
+    AdminCsvExport,
+    AdminCursorError,
     AdminInline,
     AdminRelationship,
     AdminResource,
@@ -37,6 +45,8 @@ from .contracts import (
     AuditSinkFactory,
     Authorizer,
     BulkActionResult,
+    CursorPage,
+    ExportQuery,
     InlineCollection,
     InlineMutation,
     InlineMutationResult,
@@ -52,6 +62,100 @@ from .render import AdminRenderer
 
 _FORM_BODY_LIMIT = 64 * 1024
 _PREFIX = re.compile(r"^/[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~-]+)*$")
+_CURSOR = re.compile(r"^[A-Za-z0-9_-]{1,4096}$")
+_REPOSITORY_CURSOR = re.compile(r"^[A-Za-z0-9._~-]{1,1536}$")
+
+
+def _cursor_query_fingerprint(resource: AdminResource, query: ListQuery) -> str:
+    canonical = json.dumps(
+        {
+            "d": query.descending,
+            "f": dict(sorted(query.filters.items())),
+            "o": query.order_by,
+            "q": query.search,
+            "r": resource.slug,
+            "s": query.saved_view,
+            "v": 1,
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def _cursor_payload(
+    resource: AdminResource,
+    query: ListQuery,
+    repository_cursor: str,
+) -> dict[str, object]:
+    return {
+        "c": repository_cursor,
+        "h": _cursor_query_fingerprint(resource, query),
+        "r": resource.slug,
+        "v": 1,
+    }
+
+
+def _encode_cursor(
+    resource: AdminResource,
+    query: ListQuery,
+    repository_cursor: str,
+) -> str:
+    payload = json.dumps(
+        _cursor_payload(resource, query, repository_cursor),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    encoded = base64.urlsafe_b64encode(payload).rstrip(b"=").decode("ascii")
+    if len(encoded) > 4096:
+        raise ValueError("admin cursor envelope exceeds 4096 characters")
+    return encoded
+
+
+def _decode_cursor(
+    raw: str,
+    resource: AdminResource,
+    query: ListQuery,
+) -> str:
+    if not _CURSOR.fullmatch(raw):
+        raise ValueError("cursor must be an opaque URL-safe token")
+    padding = b"=" * (-len(raw) % 4)
+    try:
+        decoded = base64.b64decode(
+            raw.encode("ascii") + padding,
+            altchars=b"-_",
+            validate=True,
+        )
+        payload = json.loads(decoded)
+    except (UnicodeEncodeError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError) as error:
+        raise ValueError("cursor is malformed") from error
+    if not isinstance(payload, dict) or set(payload) != {"c", "h", "r", "v"}:
+        raise ValueError("cursor has an unsupported shape")
+    expected = _cursor_payload(resource, query, "")
+    if any(payload[key] != expected[key] for key in expected if key != "c"):
+        raise ValueError("cursor does not belong to this resource and list query")
+    repository_cursor = payload["c"]
+    if not isinstance(repository_cursor, str) or not _REPOSITORY_CURSOR.fullmatch(
+        repository_cursor
+    ):
+        raise ValueError("cursor contains an invalid repository continuation")
+    return repository_cursor
+
+
+def _csv_cell(value: object | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    cell = str(value)
+    candidate = cell.lstrip()
+    if candidate.startswith(("=", "+", "-", "@")) or cell.startswith(("\t", "\r", "\n")):
+        return f"'{cell}"
+    return cell
 
 
 def _normalize_origin(origin: str) -> str:
@@ -190,6 +294,10 @@ class AdminSite:
         @app.post(f"{prefix}/:resource/bulk")
         async def admin_bulk(context: Context) -> Response:
             return await self._bulk(context)
+
+        @app.get(f"{prefix}/:resource/export.csv")
+        async def admin_export(context: Context) -> Response:
+            return await self._export_csv(context)
 
         @app.get(f"{prefix}/:resource/relationship/:field/choices")
         async def admin_relationship_choices(context: Context) -> Response:
@@ -333,12 +441,23 @@ class AdminSite:
             query = self._list_query(context, resource)
         except ValueError as error:
             return problem(400, title="Invalid admin list query", detail=str(error))
-        page = await resource.repository_for(context).list(query)
-        self._validate_page(resource, query, page)
+        try:
+            repository_page = await resource.repository_for(context).list(query)
+        except AdminCursorError:
+            return problem(400, title="Admin cursor is unsupported")
+        self._validate_page(resource, query, repository_page)
         visible_records = []
-        for record in page.items:
+        for record in repository_page.items:
             visible_records.append(await self._authorized_record(context, resource, record))
-        page = Page(tuple(visible_records), page.total)
+        if isinstance(repository_page, CursorPage):
+            next_cursor = (
+                None
+                if repository_page.next_cursor is None
+                else _encode_cursor(resource, query, repository_page.next_cursor)
+            )
+            page: Page | CursorPage = CursorPage(tuple(visible_records), next_cursor)
+        else:
+            page = Page(tuple(visible_records), repository_page.total)
         bulk_actions: tuple[AdminBulkAction, ...] = ()
         if resource.bulk_actions and (
             await self._allowed(context, "resource:bulk", resource) is not None
@@ -355,6 +474,8 @@ class AdminSite:
             can_add=await self._allowed(context, "resource:add", resource) is not None,
             can_change=await self._allowed(context, "resource:change", resource) is not None,
             can_delete=await self._allowed(context, "resource:delete", resource) is not None,
+            can_export=resource.csv_export is not None
+            and await self._allowed(context, "resource:export", resource) is not None,
             bulk_actions=bulk_actions,
         )
         return self._renderer.response(
@@ -365,46 +486,106 @@ class AdminSite:
         )
 
     @staticmethod
-    def _list_query(context: Context, resource: AdminResource) -> ListQuery:
-        search = context.req.query("q")
-        if search is not None:
-            search = search.strip() or None
+    def _list_query(
+        context: Context,
+        resource: AdminResource,
+        *,
+        include_pagination: bool = True,
+    ) -> ListQuery:
+        requested_view = context.req.query("view")
+        saved_view = None if requested_view is None else resource.saved_view_map.get(requested_view)
+        if requested_view is not None and saved_view is None:
+            raise ValueError("view must name a registered saved view")
+
+        raw_search = context.req.query("q")
+        if raw_search is None:
+            search = None if saved_view is None else saved_view.search
+        else:
+            search = raw_search.strip() or None
         if search is not None and len(search) > 200:
             raise ValueError("search must not exceed 200 characters")
 
-        raw_page = context.req.query("page") or "1"
-        try:
-            page_number = int(raw_page)
-        except ValueError as error:
-            raise ValueError("page must be a positive integer") from error
-        if not 1 <= page_number <= 1_000_000:
-            raise ValueError("page must be in 1-1000000")
-
         sortable = {field.name for field in resource.fields if field.sortable}
         requested_sort = context.req.query("sort")
-        order_by = requested_sort if requested_sort in sortable else None
-        descending = order_by is not None and context.req.query("direction") == "desc"
+        if requested_sort is None:
+            order_by = None if saved_view is None else saved_view.order_by
+            descending = False if saved_view is None else saved_view.descending
+        else:
+            order_by = requested_sort if requested_sort in sortable else None
+            descending = order_by is not None and context.req.query("direction") == "desc"
 
         filters = {}
         for admin_field in resource.fields:
             if not admin_field.filterable:
                 continue
             value = context.req.query(f"filter_{admin_field.name}")
+            if value is None and saved_view is not None:
+                value = saved_view.filters.get(admin_field.name)
             allowed = {choice for choice, _ in admin_field.choices}
             if value in allowed:
                 filters[admin_field.name] = value
 
-        return ListQuery(
+        query = ListQuery(
             search=search,
             filters=filters,
             order_by=order_by,
             descending=descending,
-            offset=(page_number - 1) * resource.page_size,
+            offset=0,
             limit=resource.page_size,
+            saved_view=requested_view,
+        )
+        if not include_pagination:
+            if context.req.query("page") is not None or context.req.query("cursor") is not None:
+                raise ValueError("export queries do not accept page or cursor")
+            return query
+
+        if resource.pagination == "offset":
+            if context.req.query("cursor") is not None:
+                raise ValueError("this resource does not support cursor pagination")
+            raw_page = context.req.query("page") or "1"
+            try:
+                page_number = int(raw_page)
+            except ValueError as error:
+                raise ValueError("page must be a positive integer") from error
+            if not 1 <= page_number <= 1_000_000:
+                raise ValueError("page must be in 1-1000000")
+            return ListQuery(
+                search=query.search,
+                filters=query.filters,
+                order_by=query.order_by,
+                descending=query.descending,
+                offset=(page_number - 1) * resource.page_size,
+                limit=resource.page_size,
+                saved_view=query.saved_view,
+            )
+
+        if context.req.query("page") is not None:
+            raise ValueError("cursor resources do not accept page offsets")
+        raw_cursor = context.req.query("cursor")
+        repository_cursor = (
+            None if raw_cursor is None else _decode_cursor(raw_cursor, resource, query)
+        )
+        return ListQuery(
+            search=query.search,
+            filters=query.filters,
+            order_by=query.order_by,
+            descending=query.descending,
+            offset=0,
+            limit=resource.page_size,
+            cursor=repository_cursor,
+            saved_view=query.saved_view,
         )
 
     @staticmethod
-    def _validate_page(resource: AdminResource, query: ListQuery, page: Page) -> None:
+    def _validate_page(
+        resource: AdminResource,
+        query: ListQuery,
+        page: Page | CursorPage,
+    ) -> None:
+        if resource.pagination == "offset" and not isinstance(page, Page):
+            raise TypeError(f"{resource.slug}: offset repository must return Page")
+        if resource.pagination == "cursor" and not isinstance(page, CursorPage):
+            raise TypeError(f"{resource.slug}: cursor repository must return CursorPage")
         if len(page.items) > query.limit:
             raise ValueError(f"{resource.slug}: repository returned more than the requested limit")
         for record in page.items:
@@ -929,6 +1110,194 @@ class AdminSite:
             actor=actor,
             content=content,
         )
+
+    async def _export_csv(self, context: Context) -> Response:
+        resource = self._resource(context)
+        if resource is None or resource.csv_export is None:
+            return self._not_found()
+        policy = resource.csv_export
+        actor = await self._allowed(context, "resource:export", resource)
+        if actor is None:
+            await self._failure(
+                context,
+                "resource:export",
+                resource,
+                None,
+                None,
+                "AuthorizationDenied",
+                operation="csv",
+            )
+            return self._forbidden()
+        if (context.req.header("sec-fetch-site") or "").lower() == "cross-site":
+            await self._failure(
+                context,
+                "resource:export",
+                resource,
+                None,
+                actor,
+                "CrossSiteRequest",
+                operation="csv",
+            )
+            return self._forbidden()
+        try:
+            list_query = self._list_query(context, resource, include_pagination=False)
+        except ValueError as error:
+            await self._failure(
+                context,
+                "resource:export",
+                resource,
+                None,
+                actor,
+                "InvalidExportQuery",
+                operation="csv",
+            )
+            return problem(400, title="Invalid admin export query", detail=str(error))
+        query = ExportQuery(
+            search=list_query.search,
+            filters=list_query.filters,
+            order_by=list_query.order_by,
+            descending=list_query.descending,
+            limit=policy.max_rows + 1,
+            saved_view=list_query.saved_view,
+        )
+        await self._event(
+            context,
+            "attempt",
+            "resource:export",
+            resource,
+            None,
+            actor,
+            operation="csv",
+        )
+        try:
+            returned = await policy.handler(
+                context,
+                resource.repository_for(context),
+                query,
+            )
+            if (
+                not isinstance(returned, Sequence)
+                or isinstance(returned, (str, bytes))
+                or any(not isinstance(record, Mapping) for record in returned)
+            ):
+                raise TypeError("admin CSV export handler returned an invalid record sequence")
+            records = tuple(returned)
+            if len(records) > policy.max_rows:
+                await self._failure(
+                    context,
+                    "resource:export",
+                    resource,
+                    None,
+                    actor,
+                    "ExportRowLimitExceeded",
+                    operation="csv",
+                )
+                return problem(
+                    413,
+                    title="Admin CSV export exceeds its row limit",
+                    detail=f"Refine the list query below {policy.max_rows} records.",
+                )
+            authorized_records = []
+            for record in records:
+                self._validate_record(resource, record)
+                object_id = self._record_id(resource, record)
+                if (
+                    await self._allowed(
+                        context,
+                        "resource:export",
+                        resource,
+                        object_id,
+                    )
+                    is None
+                ):
+                    await self._failure(
+                        context,
+                        "resource:export",
+                        resource,
+                        object_id,
+                        actor,
+                        "AuthorizationDenied",
+                        operation="csv",
+                    )
+                    return self._forbidden()
+                authorized_records.append(await self._authorized_record(context, resource, record))
+            body = self._csv_bytes(resource, policy, authorized_records)
+        except OverflowError:
+            await self._failure(
+                context,
+                "resource:export",
+                resource,
+                None,
+                actor,
+                "ExportByteLimitExceeded",
+                operation="csv",
+            )
+            return problem(
+                413,
+                title="Admin CSV export exceeds its byte limit",
+                detail=f"Refine the list query below {policy.max_bytes} bytes.",
+            )
+        except Exception as error:
+            await self._failure(
+                context,
+                "resource:export",
+                resource,
+                None,
+                actor,
+                type(error).__name__,
+                operation="csv",
+            )
+            raise
+        await self._event(
+            context,
+            "success",
+            "resource:export",
+            resource,
+            None,
+            actor,
+            operation="csv",
+        )
+        return context.body(
+            body,
+            headers={
+                "cache-control": "no-store",
+                "content-disposition": f'attachment; filename="{policy.filename}"',
+                "content-length": str(len(body)),
+                "content-security-policy": "default-src 'none'; sandbox",
+                "content-type": "text/csv; charset=utf-8",
+                "cross-origin-resource-policy": "same-origin",
+                "referrer-policy": "no-referrer",
+                "x-download-options": "noopen",
+                "x-content-type-options": "nosniff",
+            },
+        )
+
+    @staticmethod
+    def _csv_bytes(
+        resource: AdminResource,
+        policy: AdminCsvExport,
+        records: Sequence[Record],
+    ) -> bytes:
+        rows: list[bytes] = []
+        total_bytes = 0
+        fields = tuple(resource.field_map[name] for name in policy.fields)
+        values: Sequence[Sequence[object | None]] = (
+            tuple(field.label for field in fields),
+            *(tuple(record.get(field.name) for field in fields) for record in records),
+        )
+        for row in values:
+            output = io.StringIO(newline="")
+            writer = csv.writer(output, lineterminator="\r\n")
+            cells = tuple(_csv_cell(value) for value in row)
+            if any(len(cell) > policy.max_bytes for cell in cells):
+                raise OverflowError
+            writer.writerow(cells)
+            encoded = output.getvalue().encode("utf-8")
+            total_bytes += len(encoded)
+            if total_bytes > policy.max_bytes:
+                raise OverflowError
+            rows.append(encoded)
+        return b"".join(rows)
 
     async def _edit_form(self, context: Context) -> Response:
         resource = self._resource(context)

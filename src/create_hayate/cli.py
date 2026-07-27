@@ -463,7 +463,9 @@ defaults to fail-closed production verification.
 Open `/admin` with a Cloudflare Access identity whose email is listed in
 `ADMIN_EMAILS`. The generated starter exposes only the current identity's
 TODO records, uses bounded checked-SQL search/sort/page queries, and stores
-redacted attempt/success/failure events in `admin_audit_events`.
+redacted attempt/success/failure events in `admin_audit_events`. Static saved
+views, forward-only keyset cursors, and separately authorized bounded CSV
+exports are enabled without exposing a generic query surface.
 
 Local ASGI and `wrangler dev` authorize `developer@example.com`. Before
 deployment, replace `ADMIN_EMAILS`, `ADMIN_ALLOWED_ORIGINS` in
@@ -473,8 +475,8 @@ surface.
 
 `src/hayate_admin` and `src/hayate_htmx` are unmodified, license-preserving
 snapshots of the commits recorded in `admin/profile.toml`. They keep the
-generated Workers project runnable before the packages' first PyPI
-publication. Replace them with released dependencies only after updating and
+generated Workers project reproducible without a generation-time network
+fetch. Replace them with released dependencies only after updating and
 re-running the generated SQLite, browser, and workerd/D1 gates.
 
 Run the optional browser gate after installing Chromium:

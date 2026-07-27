@@ -374,6 +374,188 @@ async def list_admin_audit_events(
     )
 
 
+class ListAdminTodosCursorDefaultRow(TypedDict):
+    id: str
+    title: str
+    done: int
+    cursor_title: str
+
+
+LIST_ADMIN_TODOS_CURSOR_DEFAULT_QUERY = Query(
+    name="list_admin_todos_cursor_default",
+    sql=(
+        "SELECT id, title, done, '' AS cursor_title\n"
+        "FROM todos\n"
+        "WHERE owner = ?1\n"
+        "  AND (?2 = '' OR instr(lower(title), lower(?2)) > 0)\n"
+        "  AND (?3 = '' OR id < ?3)\n"
+        "ORDER BY id DESC\n"
+        "LIMIT ?4"
+    ),
+    cardinality=Cardinality.MANY,
+    parameters=(
+        Parameter("owner", "str"),
+        Parameter("search", "str"),
+        Parameter("cursor_id", "str"),
+        Parameter("limit", "int"),
+    ),
+    columns=(
+        Column("id", "str"),
+        Column("title", "str"),
+        Column("done", "int"),
+        Column("cursor_title", "str"),
+    ),
+    timeout_ms=None,
+)
+
+
+async def list_admin_todos_cursor_default(
+    db: Database,
+    /,
+    *,
+    owner: str,
+    search: str,
+    cursor_id: str,
+    limit: int,
+) -> list[ListAdminTodosCursorDefaultRow]:
+    return cast(
+        "list[ListAdminTodosCursorDefaultRow]",
+        await db.run(
+            LIST_ADMIN_TODOS_CURSOR_DEFAULT_QUERY,
+            owner=owner,
+            search=search,
+            cursor_id=cursor_id,
+            limit=limit,
+        ),
+    )
+
+
+class ListAdminTodosCursorTitleAscRow(TypedDict):
+    id: str
+    title: str
+    done: int
+    cursor_title: str
+
+
+LIST_ADMIN_TODOS_CURSOR_TITLE_ASC_QUERY = Query(
+    name="list_admin_todos_cursor_title_asc",
+    sql=(
+        "SELECT id, title, done, lower(title) AS cursor_title\n"
+        "FROM todos\n"
+        "WHERE owner = ?1\n"
+        "  AND (?2 = '' OR instr(lower(title), lower(?2)) > 0)\n"
+        "  AND (\n"
+        "    ?3 = ''\n"
+        "    OR lower(title) > ?4\n"
+        "    OR (lower(title) = ?4 AND id > ?3)\n"
+        "  )\n"
+        "ORDER BY lower(title), id\n"
+        "LIMIT ?5"
+    ),
+    cardinality=Cardinality.MANY,
+    parameters=(
+        Parameter("owner", "str"),
+        Parameter("search", "str"),
+        Parameter("cursor_id", "str"),
+        Parameter("cursor_title", "str"),
+        Parameter("limit", "int"),
+    ),
+    columns=(
+        Column("id", "str"),
+        Column("title", "str"),
+        Column("done", "int"),
+        Column("cursor_title", "str"),
+    ),
+    timeout_ms=None,
+)
+
+
+async def list_admin_todos_cursor_title_asc(
+    db: Database,
+    /,
+    *,
+    owner: str,
+    search: str,
+    cursor_id: str,
+    cursor_title: str,
+    limit: int,
+) -> list[ListAdminTodosCursorTitleAscRow]:
+    return cast(
+        "list[ListAdminTodosCursorTitleAscRow]",
+        await db.run(
+            LIST_ADMIN_TODOS_CURSOR_TITLE_ASC_QUERY,
+            owner=owner,
+            search=search,
+            cursor_id=cursor_id,
+            cursor_title=cursor_title,
+            limit=limit,
+        ),
+    )
+
+
+class ListAdminTodosCursorTitleDescRow(TypedDict):
+    id: str
+    title: str
+    done: int
+    cursor_title: str
+
+
+LIST_ADMIN_TODOS_CURSOR_TITLE_DESC_QUERY = Query(
+    name="list_admin_todos_cursor_title_desc",
+    sql=(
+        "SELECT id, title, done, lower(title) AS cursor_title\n"
+        "FROM todos\n"
+        "WHERE owner = ?1\n"
+        "  AND (?2 = '' OR instr(lower(title), lower(?2)) > 0)\n"
+        "  AND (\n"
+        "    ?3 = ''\n"
+        "    OR lower(title) < ?4\n"
+        "    OR (lower(title) = ?4 AND id < ?3)\n"
+        "  )\n"
+        "ORDER BY lower(title) DESC, id DESC\n"
+        "LIMIT ?5"
+    ),
+    cardinality=Cardinality.MANY,
+    parameters=(
+        Parameter("owner", "str"),
+        Parameter("search", "str"),
+        Parameter("cursor_id", "str"),
+        Parameter("cursor_title", "str"),
+        Parameter("limit", "int"),
+    ),
+    columns=(
+        Column("id", "str"),
+        Column("title", "str"),
+        Column("done", "int"),
+        Column("cursor_title", "str"),
+    ),
+    timeout_ms=None,
+)
+
+
+async def list_admin_todos_cursor_title_desc(
+    db: Database,
+    /,
+    *,
+    owner: str,
+    search: str,
+    cursor_id: str,
+    cursor_title: str,
+    limit: int,
+) -> list[ListAdminTodosCursorTitleDescRow]:
+    return cast(
+        "list[ListAdminTodosCursorTitleDescRow]",
+        await db.run(
+            LIST_ADMIN_TODOS_CURSOR_TITLE_DESC_QUERY,
+            owner=owner,
+            search=search,
+            cursor_id=cursor_id,
+            cursor_title=cursor_title,
+            limit=limit,
+        ),
+    )
+
+
 class ListAdminTodosDefaultRow(TypedDict):
     id: str
     title: str
@@ -387,7 +569,7 @@ LIST_ADMIN_TODOS_DEFAULT_QUERY = Query(
         "FROM todos\n"
         "WHERE owner = ?1\n"
         "  AND (?2 = '' OR instr(lower(title), lower(?2)) > 0)\n"
-        "ORDER BY rowid DESC\n"
+        "ORDER BY id DESC\n"
         "LIMIT ?3 OFFSET ?4"
     ),
     cardinality=Cardinality.MANY,
@@ -693,6 +875,9 @@ __all__ = [
     "DELETE_TODO_QUERY",
     "GET_TODO_QUERY",
     "LIST_ADMIN_AUDIT_EVENTS_QUERY",
+    "LIST_ADMIN_TODOS_CURSOR_DEFAULT_QUERY",
+    "LIST_ADMIN_TODOS_CURSOR_TITLE_ASC_QUERY",
+    "LIST_ADMIN_TODOS_CURSOR_TITLE_DESC_QUERY",
     "LIST_ADMIN_TODOS_DEFAULT_QUERY",
     "LIST_ADMIN_TODOS_TITLE_ASC_QUERY",
     "LIST_ADMIN_TODOS_TITLE_DESC_QUERY",
@@ -705,6 +890,9 @@ __all__ = [
     "CreateAdminTodoRow",
     "GetTodoRow",
     "ListAdminAuditEventsRow",
+    "ListAdminTodosCursorDefaultRow",
+    "ListAdminTodosCursorTitleAscRow",
+    "ListAdminTodosCursorTitleDescRow",
     "ListAdminTodosDefaultRow",
     "ListAdminTodosTitleAscRow",
     "ListAdminTodosTitleDescRow",
@@ -718,6 +906,9 @@ __all__ = [
     "delete_todo",
     "get_todo",
     "list_admin_audit_events",
+    "list_admin_todos_cursor_default",
+    "list_admin_todos_cursor_title_asc",
+    "list_admin_todos_cursor_title_desc",
     "list_admin_todos_default",
     "list_admin_todos_title_asc",
     "list_admin_todos_title_desc",

@@ -4,6 +4,22 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.9.0] - 2026-07-28
+
+### Added
+
+- Generate commit-pinned `hayate-admin` 0.2 saved views, forward keyset
+  pagination, and separately authorized bounded CSV exports from the opt-in
+  admin profile.
+- Exercise cursor traversal and CSV downloads through direct, Chromium, and
+  native workerd/D1 gates.
+
+### Changed
+
+- Refresh the unmodified vendored admin snapshot to the reviewed 0.2.0 release
+  commit and keep export and pagination access owner-scoped through generated
+  checked SQL.
+
 ## [0.8.0] - 2026-07-28
 
 ### Added
