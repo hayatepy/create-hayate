@@ -45,8 +45,12 @@ jobs:
           package_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           test "v${package_version}" = "${GITHUB_REF_NAME}"
       - run: uv sync --locked
-      - run: uv run ruff check src tests scripts/check_feature_matrix.py scripts/check_frontend_matrix.py
-      - run: uv run ruff format --check src tests scripts/check_feature_matrix.py scripts/check_frontend_matrix.py
+      - run: >-
+          uv run ruff check src tests scripts/check_feature_matrix.py
+          scripts/check_frontend_matrix.py scripts/check_mcp_lock_portability.py
+      - run: >-
+          uv run ruff format --check src tests scripts/check_feature_matrix.py
+          scripts/check_frontend_matrix.py scripts/check_mcp_lock_portability.py
       - run: uv run mypy src
       - run: uv run pytest -q
       - name: Resolve and import all supported scaffold compositions

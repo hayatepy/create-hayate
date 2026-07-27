@@ -50,6 +50,7 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
         "$feature_imports",
         "$feature_registrations",
         "$dependencies",
+        "$uv_environments",
         "$wrangler_bindings",
         "$ruff_extend_exclude",
         "$admin_readme",
@@ -263,9 +264,24 @@ def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monk
     registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
 
     assert '"hayate-mcp>=0.11,<0.12"' in project
+    assert "\"rpds-py>=0.26; sys_platform != 'emscripten'\"" in project
+    assert "[tool.uv]" in project
+    assert "\"sys_platform == 'emscripten'\"" in project
+    assert "\"sys_platform != 'emscripten'\"" in project
+    assert "\"pytest>=8.3; sys_platform != 'emscripten'\"" in project
+    assert "\"workers-py>=1.15,<2; sys_platform != 'emscripten'\"" in project
     assert (dest / "src/feature_mcp.py").is_file()
     assert "register_mcp(app)" in registrations
     assert (dest / "manage_workers.py").is_file()
+
+
+def test_non_mcp_project_keeps_the_minimal_uv_configuration(tmp_path, monkeypatch):
+    dest = _generate(tmp_path, monkeypatch, template="api")
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert "rpds-py" not in project
+    assert "[tool.uv]" not in project
+    assert '"pytest>=8.3"' in project
 
 
 def test_every_supported_feature_combination_generates_from_components(tmp_path, monkeypatch):
@@ -606,7 +622,10 @@ def test_htmx_profile_generates_a_runnable_same_origin_application(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"playwright>=1.54,<2"' in project
+    playwright = "playwright>=1.54,<2"
+    if template == "mcp":
+        playwright += "; sys_platform != 'emscripten'"
+    assert f'"{playwright}"' in project
     registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
     assert "register_htmx(app)" in registrations
     application = (dest / "src/app.py").read_text(encoding="utf-8")
