@@ -7,6 +7,7 @@ from hayate import Middleware, validator
 
 type ValidationTarget = Literal["json", "form", "query", "param", "header", "cookie"]
 
+
 def describe[F: Callable[..., Any]](**_metadata: Any) -> Callable[[F], F]:
     def decorate(handler: F) -> F:
         return handler
