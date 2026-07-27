@@ -19,6 +19,7 @@ from typing import Any
 from create_hayate.frontend_compatibility import (
     FRONTEND_PROFILES,
     FULL_SHARDS,
+    RENDERER_CASES,
     SCHEMA_VERSION,
     SMOKE_IDS,
     SUPPORTED_FRONTEND_CASES,
@@ -148,17 +149,22 @@ def _project_arguments(case: FrontendCase, project_name: str) -> list[str]:
         arguments.extend(["--auth", case.auth])
     if case.entrypoint != "class":
         arguments.extend(["--workers-entrypoint", case.entrypoint])
+    if case.frontend == "htmx" and case.renderer != "jinja":
+        arguments.extend(["--renderer", case.renderer])
     return arguments
 
 
 def _expected_assets(case: FrontendCase) -> tuple[str, ...]:
     common = ("frontend/profile.toml",)
     if case.frontend == "htmx":
-        return (
+        assets = (
             *common,
             "public/assets/vendor/htmx-2.0.10.min.js",
             "tests/browser/test_htmx_browser.py",
         )
+        if case.renderer != "jinja":
+            return (*assets, "frontend/renderer.toml", "src/identity.pyi")
+        return assets
     if case.frontend == "react":
         return (
             *common,
@@ -199,6 +205,7 @@ def _run_case(
             "effective_features": case.effective_features,
             "auth": case.auth,
             "entrypoint": case.entrypoint,
+            "renderer": case.renderer,
             "browser": case.browser,
             "workerd": case.workerd,
         },
@@ -271,6 +278,32 @@ def _run_case(
                 ),
             ):
                 _run(command, cwd=project, phase=phase, commands=commands)
+
+            if case.frontend == "htmx" and case.renderer != "jinja":
+                renderer_targets = ["src/feature_htmx.py"]
+                if case.renderer in {"htpy", "tdom"}:
+                    renderer_targets.append("src/htmx_views.py")
+                phase = "renderer-mypy"
+                _run(
+                    ["uv", "run", "--no-sync", "mypy", "--strict", *renderer_targets],
+                    cwd=project,
+                    phase=phase,
+                    commands=commands,
+                )
+                phase = "renderer-import"
+                _run(
+                    [
+                        "uv",
+                        "run",
+                        "--no-sync",
+                        "python",
+                        "-c",
+                        "import app, feature_htmx; assert app.app is not None",
+                    ],
+                    cwd=project,
+                    phase=phase,
+                    commands=commands,
+                )
 
             if case.frontend in {"react", "astro"}:
                 frontend = project / "frontend"
@@ -373,6 +406,7 @@ def _run_case(
                         "MATRIX_FEATURES": ",".join(case.requested_features),
                         "MATRIX_AUTH": case.auth,
                         "MATRIX_ENTRYPOINT": case.entrypoint,
+                        "MATRIX_RENDERER": (case.renderer if case.frontend == "htmx" else "jinja"),
                         "MATRIX_PYTHON": python_version,
                     }
                 )
@@ -454,8 +488,16 @@ def _render_document() -> str:
         for name, profile in FRONTEND_PROFILES.items()
     )
     smoke_rows = "\n".join(
-        f"| `{case.id}` | {'yes' if case.browser else 'no'} | {'yes' if case.workerd else 'no'} |"
+        f"| `{case.id}` | "
+        f"{f'`{case.renderer}`' if case.renderer != 'none' else '—'} | "
+        f"{'yes' if case.browser else 'no'} | {'yes' if case.workerd else 'no'} |"
         for case in smoke_frontend_cases()
+    )
+    renderer_rows = "\n".join(
+        f"| `{case.renderer}` | `{case.template}` | "
+        f"{'supported' if case.renderer != 'tdom' else 'experimental'} | "
+        f"{'yes' if case.browser else 'no'} | {'yes' if case.workerd else 'no'} |"
+        for case in RENDERER_CASES
     )
     return f"""# Frontend compatibility
 
@@ -479,6 +521,16 @@ the CLI allow-list, or the executable matrix drifts from that source.
 - Frontends remain intentionally incompatible with `--preset production`
   until each profile has a dedicated reviewed production contract.
 
+## htmx renderer contracts
+
+Jinja2 remains the compatibility default and the existing 112-composition full
+matrix is unchanged. The following additional boundary cases exercise each
+explicit renderer without replacing or weakening that matrix.
+
+| Renderer | Template | Status | Chromium | Real workerd |
+|---|---|---|---|---|
+{renderer_rows}
+
 ## Exact CI toolchains
 
 | Tool | Version |
@@ -498,8 +550,8 @@ unrelated local server cannot satisfy their readiness probes.
 
 ## Pull-request smoke cases
 
-| Composition | Chromium | Real workerd |
-|---|---|---|
+| Composition | Renderer | Chromium | Real workerd |
+|---|---|---|---|
 {smoke_rows}
 
 Pull requests run these {len(SMOKE_IDS)} boundary cases. A weekly schedule and
@@ -514,10 +566,12 @@ latest default-branch commit; manual runs can select `smoke` or `full`.
 2. Create a Python lock with `uv lock`, then install only with
    `uv sync --locked`.
 3. Run generated pytest, Ruff check, and Ruff format check.
-4. For React/Astro, install `package-lock.json` with `npm ci`, export and
+4. For explicit htmx renderers, run strict mypy on the renderer boundary and
+   import the generated application.
+5. For React/Astro, install `package-lock.json` with `npm ci`, export and
    drift-check OpenAPI, prove a stale artifact is rejected, regenerate it,
    typecheck, build, verify required assets, and run `npm audit`.
-5. Run focused Chromium smoke tests with console/page errors treated as
+6. Run focused Chromium smoke tests with console/page errors treated as
    failures, plus representative real-workerd routing contracts.
 
 The workflow and local entrypoint are:

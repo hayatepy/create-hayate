@@ -30,6 +30,13 @@ FRONTENDS: dict[str, str] = {
     **{frontend: profile.description for frontend, profile in FRONTEND_PROFILES.items()},
 }
 DEFAULT_FRONTEND = "none"
+RENDERERS: dict[str, str] = {
+    "jinja": "Jinja2 templates (compatibility default)",
+    "htpy": "typed Python components on ASGI and Workers",
+    "jx": "Jinja-backed typed components on ASGI",
+    "tdom": "experimental Python 3.14 t-string components on ASGI",
+}
+DEFAULT_RENDERER = "jinja"
 AUTHS = ("none", "cloudflare-access")
 PRESETS = ("production",)
 _FEATURE_ORDER = ("sql", "mcp", "openapi")
@@ -45,6 +52,45 @@ _FRONTEND_DEPENDENCIES = {
     "htmx": (f"hayate-htmx @ git+https://github.com/hayatepy/hayate-htmx.git@{_HTMX_COMMIT}",),
     "react": (),
     "astro": (),
+}
+_HTMX_RENDERER_DEPENDENCIES = {
+    "htpy": ("hayate-htmx[htpy]>=0.2,<0.3",),
+    "jx": ("hayate-htmx[jx]>=0.2,<0.3",),
+    "tdom": ("hayate-htmx[tdom]>=0.2,<0.3",),
+}
+_HTMX_VIEW_REFERENCES = {
+    "jinja": {
+        "auth": '"auth/page.html"',
+        "page": '"app/page.html"',
+        "list": '"app/_list.html"',
+        "create_error": '"app/_create_error.html"',
+        "edit": '"app/_edit.html"',
+        "item": '"app/_item.html"',
+    },
+    "htpy": {
+        "auth": "auth_page",
+        "page": "app_page",
+        "list": "todo_list",
+        "create_error": "create_error",
+        "edit": "edit_todo",
+        "item": "todo_item",
+    },
+    "jx": {
+        "auth": '"auth/page.jx"',
+        "page": '"app/page.jx"',
+        "list": '"app/list.jx"',
+        "create_error": '"app/create_error.jx"',
+        "edit": '"app/edit.jx"',
+        "item": '"app/item.jx"',
+    },
+    "tdom": {
+        "auth": "auth_page",
+        "page": "app_page",
+        "list": "todo_list",
+        "create_error": "create_error",
+        "edit": "edit_todo",
+        "item": "todo_item",
+    },
 }
 _MCP_OPENAPI_PATHS = """,
     "/mcp": {
@@ -158,10 +204,16 @@ _RESERVED_PROJECT_NAMES = {
     "hayate-mcp",
     "hayate-openapi",
     "hayate-sql",
+    "htpy",
+    "jinja2",
+    "jx",
     "mcp",
+    "mypy",
+    "playwright",
     "pytest",
     "pytest-asyncio",
     "ruff",
+    "tdom",
     "uvicorn",
     "workers-py",
     "workers-runtime-sdk",
@@ -183,6 +235,7 @@ class ScaffoldPlan:
     template: str
     runtime: str
     frontend: str
+    renderer: str
     features: tuple[str, ...]
     auth: str
     production: bool
@@ -262,6 +315,17 @@ def _build_plan(
     features = _parse_features(args.features, parser)
     runtime = "api" if template == "api" else "workers"
     frontend = args.frontend
+    renderer = args.renderer or DEFAULT_RENDERER
+    if args.renderer is not None and frontend != "htmx":
+        parser.error("--renderer requires --frontend htmx")
+    if frontend == "htmx":
+        if renderer in {"jx", "tdom"} and runtime != "api":
+            parser.error(
+                f"--renderer {renderer} is ASGI-only; use --template api or "
+                "--renderer jinja/htpy for Cloudflare Workers"
+            )
+    else:
+        renderer = "none"
     if template == "mcp":
         features.add("mcp")
     if frontend in {"react", "astro"}:
@@ -316,6 +380,7 @@ def _build_plan(
         template=template,
         runtime=runtime,
         frontend=frontend,
+        renderer=renderer,
         features=ordered,
         auth=auth,
         production=production,
@@ -356,6 +421,8 @@ def _readme_sections(plan: ScaffoldPlan) -> dict[str, str]:
         feature_names.append("production-controls")
     if plan.frontend != "none":
         feature_names.append(f"frontend:{plan.frontend}")
+    if plan.frontend == "htmx" and plan.renderer != DEFAULT_RENDERER:
+        feature_names.append(f"renderer:{plan.renderer}")
 
     quickstart = ["uv sync", "uv run pytest"]
     if sql and plan.runtime == "workers":
@@ -440,7 +507,7 @@ The generated configuration fails closed when production identity, CORS, D1,
 or rate-limit bindings are missing.
 """
     frontend_section = ""
-    if plan.frontend == "htmx":
+    if plan.frontend == "htmx" and plan.renderer == DEFAULT_RENDERER:
         frontend_section = """
 ## htmx full-stack UI
 
@@ -467,6 +534,41 @@ HAYATE_HTMX_BROWSER_TESTS=1 uv run pytest -m browser -q
 ASGI serves `public/assets` through Hayate. The Workers configuration publishes
 `public` through Cloudflare Static Assets and sends `/app`, `/api`, and `/auth`
 to Python first. Both paths use the same same-origin URLs and application code.
+"""
+    elif plan.frontend == "htmx":
+        renderer_status = (
+            "This renderer is experimental and requires Python 3.14 or newer."
+            if plan.renderer == "tdom"
+            else "This renderer is supported for the generated runtime."
+        )
+        runtime_note = (
+            "The Workers configuration publishes `public` through Cloudflare "
+            "Static Assets and sends `/app`, `/api`, and `/auth` to Python first."
+            if plan.runtime == "workers"
+            else "ASGI serves `public/assets` through Hayate."
+        )
+        frontend_section = f"""
+## htmx full-stack UI
+
+Open `/app` for the server-rendered task UI. JSON contracts live under
+`/api`, the current identity is visible at `/auth`, and every browser request
+stays on the application origin.
+
+This project uses the `{plan.renderer}` renderer from
+`hayate-htmx[{plan.renderer}]` 0.2. Page, fragment, edit, validation, and
+identity views are native `{plan.renderer}` components while htmx selection,
+`Vary`, status, headers, CSRF, CSP, CRUD, and SSE remain shared application
+contracts. {renderer_status}
+
+Run the optional Chromium smoke test once the browser is installed:
+
+```sh
+uv run playwright install chromium
+HAYATE_HTMX_BROWSER_TESTS=1 uv run pytest -m browser -q
+```
+
+{runtime_note} The renderer, package range, Python floor, and runtime claim are
+recorded in `frontend/renderer.toml` and asserted by generated tests.
 """
     elif plan.frontend == "react":
         frontend_section = """
@@ -554,8 +656,10 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
     dependencies = ["hayate>=0.12.1,<0.13"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
-    if plan.frontend == "htmx" and plan.runtime == "workers":
+    if plan.frontend == "htmx" and plan.renderer == DEFAULT_RENDERER and plan.runtime == "workers":
         dependencies.append("jinja2==3.1.6")
+    elif plan.frontend == "htmx" and plan.renderer != DEFAULT_RENDERER:
+        dependencies.extend(_HTMX_RENDERER_DEPENDENCIES[plan.renderer])
     else:
         dependencies.extend(_FRONTEND_DEPENDENCIES[plan.frontend])
     dev_dependencies = [
@@ -573,6 +677,8 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
         )
     if plan.frontend == "htmx":
         dev_dependencies.append("playwright>=1.54,<2")
+        if plan.renderer != DEFAULT_RENDERER:
+            dev_dependencies.append("mypy>=1.18")
 
     feature_imports, feature_registrations = _feature_registration(plan)
     bindings: list[str] = []
@@ -634,7 +740,11 @@ simple = {{ limit = 60, period = 60 }}
         "mcp_openapi_paths": _MCP_OPENAPI_PATHS if "mcp" in plan.features else "",
         "mcp_schema_path": _MCP_SCHEMA_PATH if "mcp" in plan.features else "",
         "mcp_schema_operations": (_MCP_SCHEMA_OPERATIONS if "mcp" in plan.features else ""),
-        "requires_python": ">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12",
+        "requires_python": (
+            ">=3.14,<3.15"
+            if plan.renderer == "tdom"
+            else (">=3.13,<3.14" if plan.runtime == "workers" else ">=3.12")
+        ),
         "dependencies": _toml_array(dependencies),
         "dev_dependencies": _toml_array(dev_dependencies),
         "pythonpath": '["src"]',
@@ -668,25 +778,58 @@ simple = {{ limit = 60, period = 60 }}
     if embedded.returncode != 0:
         return embedded.returncode
 """.rstrip()
-            if plan.runtime == "workers" and plan.frontend == "htmx"
+            if (
+                plan.runtime == "workers"
+                and plan.frontend == "htmx"
+                and plan.renderer == DEFAULT_RENDERER
+            )
             else ""
         ),
         "htmx_import_block": (
-            "\nfrom hayate_htmx import HtmxTemplates, JinjaRenderer, append_htmx_vary, with_htmx\n"
-            "from htmx_worker_renderer import EmbeddedJinjaRenderer"
-            if plan.runtime == "workers"
-            else (
-                "from hayate_htmx import HtmxTemplates, JinjaRenderer, "
+            (
+                "\nfrom hayate_htmx import HtmxTemplates, JinjaRenderer, "
                 "append_htmx_vary, with_htmx\n"
+                "from htmx_worker_renderer import EmbeddedJinjaRenderer"
+                if plan.runtime == "workers"
+                else (
+                    "from hayate_htmx import HtmxTemplates, JinjaRenderer, "
+                    "append_htmx_vary, with_htmx\n"
+                )
+            )
+            if plan.renderer == "jinja"
+            else (
+                "from hayate_htmx import HtmxTemplates, append_htmx_vary, with_htmx\n"
+                f"from hayate_htmx.{plan.renderer} import "
+                f"{plan.renderer.title()}Renderer\n"
+                + (
+                    "\nfrom htmx_views import (\n"
+                    "    app_page,\n"
+                    "    auth_page,\n"
+                    "    create_error,\n"
+                    "    edit_todo,\n"
+                    "    todo_item,\n"
+                    "    todo_list,\n"
+                    ")"
+                    if plan.renderer in {"htpy", "tdom"}
+                    else ""
+                )
             )
         ),
         "htmx_renderer_setup": (
-            """
+            (
+                """
     template_root = _ROOT / "templates"
     renderer = JinjaRenderer(template_root) if template_root.is_dir() else EmbeddedJinjaRenderer()
 """.strip("\n")
-            if plan.runtime == "workers"
-            else '    renderer = JinjaRenderer(_ROOT / "templates")'
+                if plan.runtime == "workers"
+                else '    renderer = JinjaRenderer(_ROOT / "templates")'
+            )
+            if plan.renderer == "jinja"
+            else (
+                '    renderer = JxRenderer(_ROOT / "components")'
+                if plan.renderer == "jx"
+                else f"    renderer = {plan.renderer.title()}Renderer()"
+            )
         ),
         "runtime_readme": (
             (
@@ -749,7 +892,29 @@ markers = [
             if plan.auth == "cloudflare-access"
             else "{}"
         ),
+        "ruff_target_version": "py312",
+        "ruff_renderer_config": (
+            '\n\n[tool.ruff.per-file-target-version]\n"src/htmx_views.py" = "py314"'
+            if plan.renderer == "tdom"
+            else ""
+        ),
+        "page_doctype_check": (
+            '(await page.text()).lower().startswith("<!doctype html>")'
+            if plan.renderer == "tdom"
+            else '(await page.text()).startswith("<!doctype html>")'
+        ),
+        "restored_doctype_check": (
+            '(await restored.text()).lower().startswith("<!doctype html>")'
+            if plan.renderer == "tdom"
+            else '(await restored.text()).startswith("<!doctype html>")'
+        ),
     }
+    variables.update(
+        {
+            f"htmx_{name}_view": reference
+            for name, reference in _HTMX_VIEW_REFERENCES.get(plan.renderer, {}).items()
+        }
+    )
     variables.update(_readme_sections(plan))
     return variables
 
@@ -772,6 +937,19 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
             variables,
             allow_overwrite=False,
         )
+    if plan.frontend == "htmx" and plan.renderer != DEFAULT_RENDERER:
+        _render_tree(
+            templates.joinpath("renderers", "shared"),
+            dest,
+            variables,
+            allow_overwrite=False,
+        )
+        _render_tree(
+            templates.joinpath("renderers", plan.renderer),
+            dest,
+            variables,
+            allow_overwrite=False,
+        )
     if plan.frontend in {"react", "astro"}:
         _render_tree(
             templates.joinpath("frontend_contracts", "openapi"),
@@ -779,7 +957,7 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
             variables,
             allow_overwrite=False,
         )
-    if plan.frontend == "htmx" and plan.runtime == "workers":
+    if plan.frontend == "htmx" and plan.renderer == DEFAULT_RENDERER and plan.runtime == "workers":
         _render_tree(
             templates.joinpath("frontend_runtimes", "htmx-workers"),
             dest,
@@ -824,6 +1002,12 @@ def main(argv: list[str] | None = None) -> int:
         choices=tuple(FRONTENDS),
         default=DEFAULT_FRONTEND,
         help="frontend profile: none (default), htmx, react, or astro",
+    )
+    parser.add_argument(
+        "--renderer",
+        choices=tuple(RENDERERS),
+        default=None,
+        help="htmx renderer: jinja (default), htpy, jx, or experimental tdom",
     )
     parser.add_argument(
         "--auth",
@@ -873,9 +1057,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     feature_summary = ", ".join(plan.features) or "base"
     frontend_summary = "" if plan.frontend == "none" else f"; frontend={plan.frontend}"
+    renderer_summary = f"; renderer={plan.renderer}" if plan.frontend == "htmx" else ""
     print(
         f"\nCreated {args.name}/ from the {template} template "
-        f"({feature_summary}; auth={plan.auth}{frontend_summary}). Next:\n"
+        f"({feature_summary}; auth={plan.auth}{frontend_summary}{renderer_summary}). Next:\n"
     )
     print(f"  cd {args.name}")
     print("  uv run pytest")

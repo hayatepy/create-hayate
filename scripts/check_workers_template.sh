@@ -16,6 +16,7 @@ create_hayate_wheel="${CREATE_HAYATE_WHEEL:-}"
 matrix_features="${MATRIX_FEATURES:-}"
 matrix_auth="${MATRIX_AUTH:-none}"
 matrix_entrypoint="${MATRIX_ENTRYPOINT:-class}"
+matrix_renderer="${MATRIX_RENDERER:-jinja}"
 matrix_python="${MATRIX_PYTHON:-}"
 production_mode=false
 global_mode=false
@@ -71,6 +72,14 @@ if [[ "${matrix_auth}" != "none" && "${matrix_auth}" != "cloudflare-access" ]]; 
 fi
 if [[ "${matrix_entrypoint}" != "class" && "${matrix_entrypoint}" != "global" ]]; then
   echo "MATRIX_ENTRYPOINT must be class or global; got: ${matrix_entrypoint}" >&2
+  exit 2
+fi
+if [[ "${matrix_renderer}" != "jinja" && "${matrix_renderer}" != "htpy" ]]; then
+  echo "MATRIX_RENDERER must be jinja or htpy for Workers; got: ${matrix_renderer}" >&2
+  exit 2
+fi
+if [[ "${htmx_mode}" != true && "${matrix_renderer}" != "jinja" ]]; then
+  echo "MATRIX_RENDERER applies only to the htmx Workers profile" >&2
   exit 2
 fi
 if [[ "${template}" == "workers" ]]; then
@@ -145,6 +154,9 @@ node --version >/dev/null
     create_args=(demo-app --template "${generated_template}" --no-input)
     if [[ "${frontend}" != "none" ]]; then
       create_args+=(--frontend "${frontend}")
+    fi
+    if [[ "${frontend}" == "htmx" && "${matrix_renderer}" != "jinja" ]]; then
+      create_args+=(--renderer "${matrix_renderer}")
     fi
     if [[ -n "${matrix_features}" ]]; then
       create_args+=(--with "${matrix_features}")

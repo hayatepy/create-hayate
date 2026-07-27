@@ -4,6 +4,24 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Added
+
+- Add `--renderer jinja|htpy|jx|tdom` as an htmx-only generation axis. Jinja2
+  remains the byte-for-byte default; htpy supports ASGI and Workers, while Jx
+  and experimental Python 3.14 tdom target ASGI.
+- Generate native page, fragment, validation, edit, item, and identity views
+  for each explicit renderer with exact `hayate-htmx` extras, renderer
+  metadata, strict mypy boundaries, and fail-fast runtime/Python constraints.
+- Extend pull-request compatibility evidence from 6 to 10 cases with
+  renderer-specific Chromium and real-workerd boundaries without weakening or
+  replacing the existing 112-composition full matrix.
+
+### Fixed
+
+- Reject renderer and generated-tool dependency names as project names before
+  generation, avoiding uv self-dependency cycles such as an htpy-rendered
+  project named `htpy`.
+
 ## [0.7.1] - 2026-07-27
 
 ### Changed

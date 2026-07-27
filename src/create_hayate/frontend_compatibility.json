@@ -38,9 +38,55 @@
       "optional_features": ["mcp", "sql"]
     }
   },
+  "renderer_cases": [
+    {
+      "id": "htmx-api-none-class-base-renderer-htpy",
+      "renderer": "htpy",
+      "template": "api",
+      "auth": "none",
+      "entrypoint": "class",
+      "requested_features": [],
+      "browser": true,
+      "workerd": false
+    },
+    {
+      "id": "htmx-workers-none-class-base-renderer-htpy",
+      "renderer": "htpy",
+      "template": "workers",
+      "auth": "none",
+      "entrypoint": "class",
+      "requested_features": [],
+      "browser": false,
+      "workerd": true
+    },
+    {
+      "id": "htmx-api-none-class-base-renderer-jx",
+      "renderer": "jx",
+      "template": "api",
+      "auth": "none",
+      "entrypoint": "class",
+      "requested_features": [],
+      "browser": true,
+      "workerd": false
+    },
+    {
+      "id": "htmx-api-none-class-base-renderer-tdom",
+      "renderer": "tdom",
+      "template": "api",
+      "auth": "none",
+      "entrypoint": "class",
+      "requested_features": [],
+      "browser": true,
+      "workerd": false
+    }
+  ],
   "smoke_ids": [
     "htmx-api-none-class-base",
     "htmx-workers-cloudflare-access-global-mcp-openapi-sql",
+    "htmx-api-none-class-base-renderer-htpy",
+    "htmx-workers-none-class-base-renderer-htpy",
+    "htmx-api-none-class-base-renderer-jx",
+    "htmx-api-none-class-base-renderer-tdom",
     "react-api-none-class-openapi",
     "react-workers-cloudflare-access-global-mcp-openapi-sql",
     "astro-api-none-class-openapi",
@@ -48,11 +94,15 @@
   ],
   "browser_ids": [
     "htmx-api-none-class-base",
+    "htmx-api-none-class-base-renderer-htpy",
+    "htmx-api-none-class-base-renderer-jx",
+    "htmx-api-none-class-base-renderer-tdom",
     "react-api-none-class-openapi",
     "astro-api-none-class-openapi"
   ],
   "workerd_ids": [
     "htmx-workers-cloudflare-access-global-mcp-openapi-sql",
+    "htmx-workers-none-class-base-renderer-htpy",
     "react-workers-cloudflare-access-global-mcp-openapi-sql",
     "astro-workers-cloudflare-access-global-mcp-openapi-sql"
   ]

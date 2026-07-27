@@ -1,0 +1,5 @@
+renderer = "htpy"
+server_package = "hayate-htmx[htpy]>=0.2,<0.3"
+python = "3.12+ on ASGI; 3.13 on Python Workers"
+runtime = "api, workers"
+status = "supported"

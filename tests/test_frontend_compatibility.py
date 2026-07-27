@@ -13,6 +13,7 @@ from create_hayate.frontend_compatibility import (
     BROWSER_IDS,
     FRONTEND_PROFILES,
     FULL_SHARDS,
+    RENDERER_CASES,
     SMOKE_IDS,
     SUPPORTED_FRONTEND_CASE_IDS,
     SUPPORTED_FRONTEND_CASES,
@@ -73,6 +74,7 @@ def test_every_supported_frontend_case_builds_the_cli_plan():
     for case in SUPPORTED_FRONTEND_CASES:
         arguments = argparse.Namespace(
             frontend=case.frontend,
+            renderer=None,
             features=",".join(case.requested_features) or None,
             preset=None,
             auth=None if case.auth == "none" else case.auth,
@@ -84,6 +86,36 @@ def test_every_supported_frontend_case_builds_the_cli_plan():
         assert set(plan.features) == set(case.effective_features)
         assert plan.auth == case.auth
         assert plan.workers_entrypoint == case.entrypoint
+        assert plan.renderer == ("jinja" if case.frontend == "htmx" else "none")
+
+
+def test_renderer_boundary_cases_extend_without_replacing_the_full_matrix():
+    assert len(SUPPORTED_FRONTEND_CASES) == 112
+    assert tuple(case.renderer for case in RENDERER_CASES) == (
+        "htpy",
+        "htpy",
+        "jx",
+        "tdom",
+    )
+    assert {case.runtime for case in RENDERER_CASES if case.renderer == "htpy"} == {
+        "api",
+        "workers",
+    }
+    assert all(case.frontend == "htmx" for case in RENDERER_CASES)
+
+    parser = argparse.ArgumentParser()
+    for case in RENDERER_CASES:
+        arguments = argparse.Namespace(
+            frontend="htmx",
+            renderer=case.renderer,
+            features=",".join(case.requested_features) or None,
+            preset=None,
+            auth=None if case.auth == "none" else case.auth,
+            workers_entrypoint=case.entrypoint,
+        )
+        plan = cli._build_plan(arguments, case.template, parser)
+        assert plan.renderer == case.renderer
+        assert plan.runtime == case.runtime
 
 
 def test_cli_fails_closed_when_a_frontend_plan_is_not_in_compatibility_data(
@@ -100,6 +132,7 @@ def test_cli_fails_closed_when_a_frontend_plan_is_not_in_compatibility_data(
 def test_bounded_and_full_matrices_cover_the_declared_cases_once():
     smoke = smoke_frontend_cases()
     assert tuple(case.id for case in smoke) == SMOKE_IDS
+    assert len(smoke) == 10
     assert BROWSER_IDS.union(WORKERD_IDS) == frozenset(SMOKE_IDS)
     assert BROWSER_IDS.isdisjoint(WORKERD_IDS)
 

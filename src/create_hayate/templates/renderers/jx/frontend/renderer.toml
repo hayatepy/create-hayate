@@ -1,0 +1,5 @@
+renderer = "jx"
+server_package = "hayate-htmx[jx]>=0.2,<0.3"
+python = "3.12+"
+runtime = "api"
+status = "supported"
