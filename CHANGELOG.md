@@ -6,9 +6,9 @@ All notable changes to create-hayate are documented here.
 
 ### Changed
 
-- Generate projects on Hayate 0.12 and hayate-openapi 0.4, completing the
+- Generate projects on Hayate 0.12.1+ and hayate-openapi 0.4, completing the
   shared runtime/OpenAPI validation contract for JSON bodies and route
-  parameters.
+  parameters while retaining route middleware on the native Workers fast path.
 - Reject malformed JSON through the core RFC 9457 validation path and emit the
   UUID route-parameter schema from the same generated application.
 - Resolve and import all 42 supported compositions against the released

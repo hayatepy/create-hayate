@@ -266,7 +266,7 @@ or rate-limit bindings are missing.
 
 def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
-    dependencies = ["hayate>=0.12,<0.13"]
+    dependencies = ["hayate>=0.12.1,<0.13"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
     dev_dependencies = [
         "pytest>=8.3",
