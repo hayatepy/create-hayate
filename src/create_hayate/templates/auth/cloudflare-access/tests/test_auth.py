@@ -14,10 +14,10 @@ from tests.helpers import AUTH_HEADERS
 
 @pytest.mark.asyncio
 async def test_protected_routes_require_and_expose_access_identity():
-    denied = await app.request("/whoami")
+    denied = await app.request("$api_prefix/whoami")
     assert denied.status == 401
 
-    accepted = await app.request("/whoami", headers=AUTH_HEADERS)
+    accepted = await app.request("$api_prefix/whoami", headers=AUTH_HEADERS)
     assert accepted.status == 200
     assert await accepted.json() == {
         "subject": "developer@example.com",
@@ -28,7 +28,7 @@ async def test_protected_routes_require_and_expose_access_identity():
 
 @pytest.mark.asyncio
 async def test_health_remains_public_for_platform_probes():
-    response = await app.request("/health")
+    response = await app.request("$api_prefix/health")
     assert response.status == 200
 
 

@@ -43,6 +43,12 @@ All notable changes to create-hayate are documented here.
 - Share one generated, drift-checked OpenAPI document, TypeScript schema, and
   `openapi-fetch` client between the React and Astro profiles, with no
   handwritten browser API models.
+- Define the 112 unique supported frontend compositions as packaged data used
+  by both the CLI allow-list and CI, with six built-wheel pull-request boundary
+  cases and a 12-shard weekly or manually dispatched full matrix.
+- Publish exact Python, Node, npm, and uv toolchains plus phase-level commands,
+  artifact digests, failures, and timings as aggregated frontend compatibility
+  evidence.
 
 ### Changed
 
@@ -50,6 +56,8 @@ All notable changes to create-hayate are documented here.
   API, htmx, in-memory, SQLite, and D1 compositions use one domain contract.
 - Split TODO API registration into an overlay boundary so optional features
   can improve transport contracts without duplicating the application shell.
+- Move frontend smoke coverage into the data-driven compatibility workflow and
+  make React and Astro browser console/page errors fail their generated gates.
 
 ### Fixed
 

@@ -656,6 +656,27 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
         assert 'run_worker_first = ["/api/*"' in config
 
 
+@pytest.mark.parametrize("frontend", ["react", "astro"])
+def test_typed_frontend_contract_includes_optional_mcp_routes(
+    tmp_path,
+    monkeypatch,
+    frontend,
+):
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        extra_args=("--frontend", frontend, "--with", "mcp"),
+    )
+
+    document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
+    schema = (dest / "frontend/src/api/schema.d.ts").read_text(encoding="utf-8")
+    assert '"/mcp"' in document
+    assert '"/mcp"' in schema
+    assert "get_mcp" in schema
+    assert "post_mcp" in schema
+    assert "delete_mcp" in schema
+
+
 def test_frontend_overlay_collision_fails_without_overwriting(tmp_path):
     source = tmp_path / "source"
     destination = tmp_path / "destination"

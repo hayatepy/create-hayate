@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 test("creates, edits, persists, and deep-links through the typed API", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  const pageErrors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Decide what moves today/ })).toBeVisible();
 
@@ -25,4 +32,6 @@ test("creates, edits, persists, and deep-links through the typed API", async ({ 
   await page.getByRole("link", { name: /Return to the desk/ }).click();
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByText("Ship the typed React profile")).toHaveCount(0);
+  expect(consoleErrors).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });

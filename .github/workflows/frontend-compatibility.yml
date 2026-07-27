@@ -1,0 +1,146 @@
+name: Frontend compatibility
+
+on:
+  pull_request:
+  schedule:
+    - cron: "23 17 * * 1"
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Compatibility coverage to run
+        required: true
+        default: full
+        type: choice
+        options:
+          - smoke
+          - full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-compatibility-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  define:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      scope: ${{ steps.matrix.outputs.scope }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          python-version: "3.13.11"
+      - run: uv sync --locked
+      - run: uv run --no-sync python scripts/check_frontend_matrix.py document --check docs/FRONTEND_COMPATIBILITY.md
+      - run: uv build
+      - id: matrix
+        name: Select bounded or full coverage
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_SCOPE: ${{ inputs.scope }}
+        run: |
+          scope=full
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            scope=smoke
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$REQUESTED_SCOPE" == "smoke" ]]; then
+            scope=smoke
+          fi
+          matrix="$(uv run --no-sync python scripts/check_frontend_matrix.py matrix --scope "$scope")"
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-wheel
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 7
+
+  verify:
+    needs: define
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix: ${{ fromJSON(needs.define.outputs.matrix) }}
+    name: verify (${{ matrix.id }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: frontend-wheel
+          path: dist
+      - run: uv sync --locked
+      - name: Verify generated compositions
+        env:
+          MATRIX_SCOPE: ${{ matrix.scope }}
+          MATRIX_SELECTOR: ${{ matrix.selector }}
+        run: |
+          wheel_path="$(ls dist/create_hayate-*.whl)"
+          uv run --no-sync python scripts/check_frontend_matrix.py run \
+            --scope "$MATRIX_SCOPE" \
+            --selector "$MATRIX_SELECTOR" \
+            --wheel "$wheel_path" \
+            --evidence frontend-evidence
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-evidence-${{ matrix.id }}
+          path: frontend-evidence/*.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-evidence:
+    if: always()
+    needs: [define, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.11.32"
+          python-version: "3.13.11"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: frontend-evidence-*
+          path: frontend-evidence
+          merge-multiple: true
+      - run: uv sync --locked
+      - name: Aggregate and verify evidence
+        env:
+          MATRIX_SCOPE: ${{ needs.define.outputs.scope }}
+        run: |
+          uv run --no-sync python scripts/check_frontend_matrix.py summarize \
+            --scope "$MATRIX_SCOPE" \
+            --evidence frontend-evidence \
+            --output frontend-compatibility-evidence.json \
+            --markdown frontend-summary.md
+          cat frontend-summary.md >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: frontend-compatibility-evidence
+          path: |
+            frontend-compatibility-evidence.json
+            frontend-summary.md
+          if-no-files-found: error
+          retention-days: 30

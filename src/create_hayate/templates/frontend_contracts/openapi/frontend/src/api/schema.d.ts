@@ -91,7 +91,7 @@ export interface paths {
         /** Update a todo */
         patch: operations["updateTodo"];
         trace?: never;
-    };
+    };$mcp_schema_path
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -350,5 +350,5 @@ export interface operations {
                 content?: never;
             };
         };
-    };
+    };$mcp_schema_operations
 }

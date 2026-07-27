@@ -12,11 +12,17 @@ port=8793
 server_pid=""
 ready_path="/"
 hayate_wheel="${HAYATE_ECOSYSTEM_WHEEL:-}"
+create_hayate_wheel="${CREATE_HAYATE_WHEEL:-}"
+matrix_features="${MATRIX_FEATURES:-}"
+matrix_auth="${MATRIX_AUTH:-none}"
+matrix_entrypoint="${MATRIX_ENTRYPOINT:-class}"
+matrix_python="${MATRIX_PYTHON:-}"
 production_mode=false
 global_mode=false
 htmx_mode=false
 react_mode=false
 astro_mode=false
+sql_mode=false
 
 if [[ "${template}" == "production" || "${template}" == "production-global" ]]; then
   production_mode=true
@@ -33,6 +39,9 @@ fi
 if [[ "${template}" == "astro" ]]; then
   astro_mode=true
 fi
+if [[ ",${matrix_features}," == *",sql,"* ]]; then
+  sql_mode=true
+fi
 if [[ "${template}" != "workers" && "${template}" != "mcp" \
   && "${htmx_mode}" != true && "${react_mode}" != true && "${astro_mode}" != true \
   && "${production_mode}" != true ]]; then
@@ -45,6 +54,24 @@ if [[ -n "${hayate_wheel}" ]]; then
     exit 2
   fi
   hayate_wheel="$(cd "$(dirname "${hayate_wheel}")" && pwd)/$(basename "${hayate_wheel}")"
+fi
+if [[ -n "${create_hayate_wheel}" ]]; then
+  if [[ ! -f "${create_hayate_wheel}" || "${create_hayate_wheel}" != *.whl ]]; then
+    echo "CREATE_HAYATE_WHEEL must name an existing wheel: ${create_hayate_wheel}" >&2
+    exit 2
+  fi
+  create_hayate_wheel="$(
+    cd "$(dirname "${create_hayate_wheel}")"
+    pwd
+  )/$(basename "${create_hayate_wheel}")"
+fi
+if [[ "${matrix_auth}" != "none" && "${matrix_auth}" != "cloudflare-access" ]]; then
+  echo "MATRIX_AUTH must be none or cloudflare-access; got: ${matrix_auth}" >&2
+  exit 2
+fi
+if [[ "${matrix_entrypoint}" != "class" && "${matrix_entrypoint}" != "global" ]]; then
+  echo "MATRIX_ENTRYPOINT must be class or global; got: ${matrix_entrypoint}" >&2
+  exit 2
 fi
 if [[ "${template}" == "workers" ]]; then
   ready_path="/todos"
@@ -68,7 +95,7 @@ else
   ready_path="/health"
 fi
 auth_header=(-H "x-create-hayate-smoke: true")
-if [[ "${production_mode}" == true ]]; then
+if [[ "${production_mode}" == true || "${matrix_auth}" == "cloudflare-access" ]]; then
   auth_header=(-H "cf-access-authenticated-user-email: workerd@example.com")
 fi
 
@@ -98,26 +125,47 @@ node --version >/dev/null
 
 (
   cd "${test_dir}"
+  generator=("${repo_dir}/.venv/bin/create-hayate")
+  if [[ -n "${create_hayate_wheel}" ]]; then
+    generator=(uvx --from "${create_hayate_wheel}" create-hayate)
+  fi
   if [[ "${production_mode}" == true ]]; then
     create_args=(demo-app --template workers --preset production --no-input)
     if [[ "${global_mode}" == true ]]; then
       create_args+=(--workers-entrypoint global)
     fi
-    "${repo_dir}/.venv/bin/create-hayate" "${create_args[@]}"
-  elif [[ "${htmx_mode}" == true ]]; then
-    "${repo_dir}/.venv/bin/create-hayate" \
-      demo-app --template workers --frontend htmx --no-input
-  elif [[ "${react_mode}" == true ]]; then
-    "${repo_dir}/.venv/bin/create-hayate" \
-      demo-app --template workers --frontend react --no-input
-  elif [[ "${astro_mode}" == true ]]; then
-    "${repo_dir}/.venv/bin/create-hayate" \
-      demo-app --template workers --frontend astro --no-input
+    "${generator[@]}" "${create_args[@]}"
   else
-    "${repo_dir}/.venv/bin/create-hayate" demo-app --template "${template}" --no-input
+    generated_template="${template}"
+    frontend="none"
+    if [[ "${htmx_mode}" == true || "${react_mode}" == true || "${astro_mode}" == true ]]; then
+      generated_template="workers"
+      frontend="${template}"
+    fi
+    create_args=(demo-app --template "${generated_template}" --no-input)
+    if [[ "${frontend}" != "none" ]]; then
+      create_args+=(--frontend "${frontend}")
+    fi
+    if [[ -n "${matrix_features}" ]]; then
+      create_args+=(--with "${matrix_features}")
+    fi
+    if [[ "${matrix_auth}" != "none" ]]; then
+      create_args+=(--auth "${matrix_auth}")
+    fi
+    if [[ "${matrix_entrypoint}" != "class" ]]; then
+      create_args+=(--workers-entrypoint "${matrix_entrypoint}")
+    fi
+    "${generator[@]}" "${create_args[@]}"
   fi
   cd demo-app
-  uv sync
+  lock_args=(lock)
+  sync_args=(sync --locked)
+  if [[ -n "${matrix_python}" ]]; then
+    lock_args+=(--python "${matrix_python}")
+    sync_args+=(--python "${matrix_python}")
+  fi
+  uv "${lock_args[@]}"
+  uv "${sync_args[@]}"
   if [[ "${react_mode}" == true || "${astro_mode}" == true ]]; then
     (
       cd frontend
@@ -135,7 +183,7 @@ node --version >/dev/null
       "${hayate_wheel}"
   fi
   uv run --no-sync pytest -q
-  if [[ "${production_mode}" == true ]]; then
+  if [[ "${production_mode}" == true || "${sql_mode}" == true ]]; then
     uv run --no-sync python scripts/check_sql_contracts.py
   fi
   if [[ -n "${hayate_wheel}" ]]; then
@@ -193,9 +241,9 @@ node --version >/dev/null
     echo "required UTS-46 mapping is absent from Wrangler upload" >&2
     exit 1
   fi
-  if [[ "${production_mode}" == true ]]; then
+  if [[ "${production_mode}" == true || "${sql_mode}" == true ]]; then
     if [[ ! -f "${bundle_dir}/python_modules/hayate_sql/__init__.py" ]]; then
-      echo "hayate-sql is absent from the production Worker bundle" >&2
+      echo "hayate-sql is absent from the SQL-enabled Worker bundle" >&2
       exit 1
     fi
     uv run --no-sync python manage_workers.py d1 migrations apply DB --local
@@ -206,18 +254,20 @@ server_pid=$!
 
 ready=false
 for _ in {1..60}; do
-  if curl --fail --silent --max-time 2 "http://127.0.0.1:${port}${ready_path}" >/dev/null; then
+  if curl --fail --silent --max-time 2 \
+    "${auth_header[@]}" \
+    "http://127.0.0.1:${port}${ready_path}" >/dev/null; then
     ready=true
     break
   fi
   if ! kill -0 "${server_pid}" 2>/dev/null; then
-    cat "${log_file}"
+    tail -n 250 "${log_file}"
     exit 1
   fi
   sleep 1
 done
 if [[ "${ready}" != true ]]; then
-  cat "${log_file}"
+  tail -n 250 "${log_file}"
   exit 1
 fi
 
@@ -256,7 +306,11 @@ if [[ "${template}" == "workers" ]]; then
 fi
 
 if [[ "${htmx_mode}" == true ]]; then
-  page="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/app")"
+  page="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/app"
+  )"
   if [[ "${page}" != "<!doctype html>"* ]]; then
     echo "htmx profile did not return a complete page" >&2
     exit 1
@@ -280,16 +334,27 @@ if [[ "${htmx_mode}" == true ]]; then
   fi
   curl --fail --silent --max-time 5 \
     -X POST "http://127.0.0.1:${port}/app/todos" \
+    "${auth_header[@]}" \
     -H "origin: http://127.0.0.1:${port}" \
     -H "hx-request: true" \
     -H "content-type: application/x-www-form-urlencoded" \
     --data "title=generated+htmx+worker" >/dev/null
-  listed="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/api/todos")"
+  listed="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/api/todos"
+  )"
   uv run python -c \
     'import json,sys; assert any(todo["title"] == "generated htmx worker" for todo in json.loads(sys.argv[1]))' \
     "${listed}"
-  curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/auth" >/dev/null
-  stream="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/app/stream")"
+  curl --fail --silent --max-time 5 \
+    "${auth_header[@]}" \
+    "http://127.0.0.1:${port}/auth" >/dev/null
+  stream="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/app/stream"
+  )"
   if [[ "${stream}" != *"event: done"* ]]; then
     echo "htmx profile SSE stream did not complete" >&2
     exit 1
@@ -321,17 +386,26 @@ if [[ "${react_mode}" == true ]]; then
   created="$(
     curl --fail --silent --max-time 5 \
       -X POST "http://127.0.0.1:${port}/api/todos" \
+      "${auth_header[@]}" \
       -H "content-type: application/json" \
       --data '{"title":"generated React worker"}'
   )"
   uv run python -c \
     'import json,sys; assert json.loads(sys.argv[1])["title"] == "generated React worker"' \
     "${created}"
-  listed="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/api/todos")"
+  listed="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/api/todos"
+  )"
   uv run python -c \
     'import json,sys; assert any(todo["title"] == "generated React worker" for todo in json.loads(sys.argv[1]))' \
     "${listed}"
-  openapi="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/openapi.json")"
+  openapi="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/openapi.json"
+  )"
   uv run python -c \
     'import json,sys; document=json.loads(sys.argv[1]); assert "/api/todos" in document["paths"]' \
     "${openapi}"
@@ -376,17 +450,26 @@ if [[ "${astro_mode}" == true ]]; then
   created="$(
     curl --fail --silent --max-time 5 \
       -X POST "http://127.0.0.1:${port}/api/todos" \
+      "${auth_header[@]}" \
       -H "content-type: application/json" \
       --data '{"title":"generated Astro worker"}'
   )"
   uv run python -c \
     'import json,sys; assert json.loads(sys.argv[1])["title"] == "generated Astro worker"' \
     "${created}"
-  listed="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/api/todos")"
+  listed="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/api/todos"
+  )"
   uv run python -c \
     'import json,sys; assert any(todo["title"] == "generated Astro worker" for todo in json.loads(sys.argv[1]))' \
     "${listed}"
-  openapi="$(curl --fail --silent --max-time 5 "http://127.0.0.1:${port}/openapi.json")"
+  openapi="$(
+    curl --fail --silent --max-time 5 \
+      "${auth_header[@]}" \
+      "http://127.0.0.1:${port}/openapi.json"
+  )"
   uv run python -c \
     'import json,sys; document=json.loads(sys.argv[1]); assert "/api/todos" in document["paths"]' \
     "${openapi}"
