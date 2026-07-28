@@ -65,16 +65,26 @@ environments = [
   "sys_platform != 'emscripten'",
 ]"""
 _HTMX_COMMIT = "255de5bf3fc3f3f7665572940ffb5bfcef06d6b2"
+_HTMX_RENDERER_COMMIT = "c133900998c487a44d40a103c52f2d469047deda"
 _FRONTEND_DEPENDENCIES = {
     "none": (),
     "htmx": (f"hayate-htmx @ git+https://github.com/hayatepy/hayate-htmx.git@{_HTMX_COMMIT}",),
     "react": (),
     "astro": (),
 }
-_HTMX_RENDERER_DEPENDENCIES = {
-    "htpy": ("hayate-htmx[htpy]>=0.2,<0.3",),
-    "jx": ("hayate-htmx[jx]>=0.2,<0.3",),
-    "tdom": ("hayate-htmx[tdom]>=0.2,<0.3",),
+_HTMX_ASGI_DEPENDENCIES = {
+    renderer: (
+        f"hayate-htmx[{renderer}] @ "
+        f"git+https://github.com/hayatepy/hayate-htmx.git@{_HTMX_RENDERER_COMMIT}",
+    )
+    for renderer in ("htpy", "jx", "tdom")
+}
+_HTMX_WORKERS_DEPENDENCIES = {
+    "htpy": (
+        "jinja2==3.1.6",
+        "htpy>=26.5,<27",
+        "markupsafe==3.0.2; sys_platform == 'emscripten' and python_version < '3.14'",
+    ),
 }
 _HTMX_VIEW_REFERENCES = {
     "jinja": {
@@ -638,11 +648,12 @@ Open `/app` for the server-rendered task UI. JSON contracts live under
 `/api`, the current identity is visible at `/auth`, and every browser request
 stays on the application origin.
 
-This project uses the `{plan.renderer}` renderer from
-`hayate-htmx[{plan.renderer}]` 0.2. Page, fragment, edit, validation, and
-identity views are native `{plan.renderer}` components while htmx selection,
-`Vary`, status, headers, CSRF, CSP, CRUD, and SSE remain shared application
-contracts. {renderer_status}
+This project uses the `{plan.renderer}` renderer from the reviewed
+`hayate-htmx` 0.2.0 candidate commit
+`{_HTMX_RENDERER_COMMIT}`. Page, fragment, edit, validation, and identity
+views are native `{plan.renderer}` components while htmx selection, `Vary`,
+status, headers, CSRF, CSP, CRUD, and SSE remain shared application contracts.
+{renderer_status}
 
 Run the optional Chromium smoke test once the browser is installed:
 
@@ -749,8 +760,10 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
         dependencies.append(_MCP_CPYTHON_RPDS)
     if plan.frontend == "htmx" and plan.renderer == DEFAULT_RENDERER and plan.runtime == "workers":
         dependencies.append("jinja2==3.1.6")
+    elif plan.frontend == "htmx" and plan.runtime == "workers":
+        dependencies.extend(_HTMX_WORKERS_DEPENDENCIES[plan.renderer])
     elif plan.frontend == "htmx" and plan.renderer != DEFAULT_RENDERER:
-        dependencies.extend(_HTMX_RENDERER_DEPENDENCIES[plan.renderer])
+        dependencies.extend(_HTMX_ASGI_DEPENDENCIES[plan.renderer])
     else:
         dependencies.extend(_FRONTEND_DEPENDENCIES[plan.frontend])
     dev_dependencies = [
@@ -1025,6 +1038,15 @@ markers = [
             if plan.renderer == "tdom"
             else '(await restored.text()).startswith("<!doctype html>")'
         ),
+        "htmx_server_package": (
+            f"hayate-htmx 0.2.0 vendored @ {_HTMX_RENDERER_COMMIT}"
+            if plan.frontend == "htmx"
+            and plan.renderer != DEFAULT_RENDERER
+            and plan.runtime == "workers"
+            else _HTMX_ASGI_DEPENDENCIES[plan.renderer][0]
+            if plan.frontend == "htmx" and plan.renderer != DEFAULT_RENDERER
+            else ""
+        ),
     }
     variables.update(
         {
@@ -1082,13 +1104,20 @@ def _render_plan(dest: Path, variables: dict[str, str], plan: ScaffoldPlan) -> N
             variables,
             allow_overwrite=False,
         )
-    if plan.frontend == "htmx" and plan.renderer == DEFAULT_RENDERER and plan.runtime == "workers":
+    if plan.frontend == "htmx" and plan.runtime == "workers":
         _render_tree(
             templates.joinpath("frontend_runtimes", "htmx-workers"),
             dest,
             variables,
             allow_overwrite=False,
         )
+        if plan.renderer == "htpy":
+            _render_tree(
+                templates.joinpath("frontend_runtimes", "htmx-workers-htpy"),
+                dest,
+                variables,
+                allow_overwrite=True,
+            )
 
 
 def main(argv: list[str] | None = None) -> int:

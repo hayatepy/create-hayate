@@ -291,6 +291,8 @@ def _run_case(
                     commands=commands,
                 )
                 phase = "renderer-import"
+                import_env = os.environ.copy()
+                import_env["PYTHONPATH"] = str(project / "src")
                 _run(
                     [
                         "uv",
@@ -303,6 +305,7 @@ def _run_case(
                     cwd=project,
                     phase=phase,
                     commands=commands,
+                    env=import_env,
                 )
 
             if case.frontend in {"react", "astro"}:

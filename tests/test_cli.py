@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import io
 import itertools
@@ -708,21 +709,53 @@ def test_implicit_htmx_renderer_preserves_explicit_jinja_output(
 
 
 @pytest.mark.parametrize(
+    ("filename", "digest"),
+    [
+        ("__init__.py", "d6b0d575d40f692002557c675ae85c474686e5f9ea9ffd18ea5b06bf63f4f908"),
+        ("htpy.py", "641034142cda2d72056bd917711ead2a708d3bfd307033a45568270ef997949c"),
+        ("templates.py", "317ee22a9d4a12ac173a9b611c1189a1dea5ad8b748df9ec25b623a23024e661"),
+    ],
+)
+def test_htpy_workers_snapshot_matches_the_reviewed_renderer_commit(filename, digest):
+    source = (
+        Path("src/create_hayate/templates/frontend_runtimes/htmx-workers-htpy")
+        / "src/hayate_htmx"
+        / filename
+    )
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
+
+
+@pytest.mark.parametrize(
     ("renderer", "template", "dependency", "requires_python", "native_view"),
     [
-        ("htpy", "api", '"hayate-htmx[htpy]>=0.2,<0.3"', '">=3.12"', "src/htmx_views.py"),
+        (
+            "htpy",
+            "api",
+            '"hayate-htmx[htpy] @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@c133900998c487a44d40a103c52f2d469047deda"',
+            '">=3.12"',
+            "src/htmx_views.py",
+        ),
         (
             "htpy",
             "workers",
-            '"hayate-htmx[htpy]>=0.2,<0.3"',
+            '"htpy>=26.5,<27"',
             '">=3.13,<3.14"',
             "src/htmx_views.py",
         ),
-        ("jx", "api", '"hayate-htmx[jx]>=0.2,<0.3"', '">=3.12"', "components/app/page.jx"),
+        (
+            "jx",
+            "api",
+            '"hayate-htmx[jx] @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@c133900998c487a44d40a103c52f2d469047deda"',
+            '">=3.12"',
+            "components/app/page.jx",
+        ),
         (
             "tdom",
             "api",
-            '"hayate-htmx[tdom]>=0.2,<0.3"',
+            '"hayate-htmx[tdom] @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@c133900998c487a44d40a103c52f2d469047deda"',
             '">=3.14,<3.15"',
             "src/htmx_views.py",
         ),
@@ -757,11 +790,17 @@ def test_htmx_renderer_axis_generates_native_views_and_exact_dependencies(
     assert (dest / native_view).is_file()
     assert (dest / "src/identity.pyi").is_file()
     assert f'renderer = "{renderer}"' in profile
+    assert "c133900998c487a44d40a103c52f2d469047deda" in profile
     assert f"`{renderer}` renderer" in readme
     assert f"renderer={renderer}" in capsys.readouterr().out
     assert "JinjaRenderer" not in feature
-    assert not (dest / "src/hayate_htmx").exists()
-    assert not (dest / "scripts/embed_htmx_templates.py").exists()
+    if template == "workers":
+        assert (dest / "src/hayate_htmx/htpy.py").is_file()
+        assert "hayate-htmx[" not in project
+        assert (dest / "scripts/embed_htmx_templates.py").is_file()
+    else:
+        assert not (dest / "src/hayate_htmx").exists()
+        assert not (dest / "scripts/embed_htmx_templates.py").exists()
 
     if renderer == "jx":
         assert 'JxRenderer(_ROOT / "components")' in feature

@@ -111,7 +111,10 @@ experimental `tdom` uses Python 3.14 t-string components on ASGI. All renderer
 profiles preserve the same routes, identity-scoped CRUD, htmx fragments,
 security headers, and browser behavior. Explicit renderer projects record
 their runtime and Python contract in `frontend/renderer.toml` and add strict
-mypy checks at the renderer boundary.
+mypy checks at the renderer boundary. Until `hayate-htmx` is published, ASGI
+profiles pin reviewed 0.2.0 candidate commit `c133900`, while htpy Workers
+bundle the same small typed boundary because Pywrangler cannot install VCS
+records from its portable lock.
 
 `react` generates a pinned Node 24/Vite/React Router application in
 `frontend/`. It enables Hayate OpenAPI automatically, keeps JSON below `/api`,

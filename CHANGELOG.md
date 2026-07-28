@@ -12,6 +12,9 @@ All notable changes to create-hayate are documented here.
 - Generate native page, fragment, validation, edit, item, and identity views
   for each explicit renderer with exact `hayate-htmx` extras, renderer
   metadata, strict mypy boundaries, and fail-fast runtime/Python constraints.
+- Pin explicit ASGI renderers to reviewed `hayate-htmx` 0.2.0 candidate commit
+  `c133900`, and bundle the same typed htpy boundary for Workers until the
+  trusted-publisher gate makes a portable released dependency available.
 - Extend pull-request compatibility evidence from 6 to 10 cases with
   renderer-specific Chromium and real-workerd boundaries without weakening or
   replacing the existing 112-composition full matrix.
