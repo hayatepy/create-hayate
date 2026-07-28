@@ -917,11 +917,12 @@ simple = {{ limit = 60, period = 60 }}
             )
             if plan.renderer == "jinja"
             else (
-                "from hayate_htmx import HtmxTemplates, append_htmx_vary, with_htmx\n"
+                ("\n" if plan.runtime == "workers" else "")
+                + "from hayate_htmx import HtmxTemplates, append_htmx_vary, with_htmx\n"
                 f"from hayate_htmx.{plan.renderer} import "
                 f"{plan.renderer.title()}Renderer\n"
                 + (
-                    "\nfrom htmx_views import (\n"
+                    ("\n" if plan.runtime != "workers" else "") + "from htmx_views import (\n"
                     "    app_page,\n"
                     "    auth_page,\n"
                     "    create_error,\n"

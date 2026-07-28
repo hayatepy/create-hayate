@@ -798,6 +798,8 @@ def test_htmx_renderer_axis_generates_native_views_and_exact_dependencies(
         assert (dest / "src/hayate_htmx/htpy.py").is_file()
         assert "hayate-htmx[" not in project
         assert (dest / "scripts/embed_htmx_templates.py").is_file()
+        assert "from hayate.middleware import static_files\n\nfrom hayate_htmx" in feature
+        assert "from hayate_htmx.htpy import HtpyRenderer\nfrom htmx_views" in feature
     else:
         assert not (dest / "src/hayate_htmx").exists()
         assert not (dest / "scripts/embed_htmx_templates.py").exists()
