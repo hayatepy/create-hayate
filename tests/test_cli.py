@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import io
 import itertools
@@ -7,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from create_hayate import cli
-from create_hayate.cli import FEATURES, FRONTENDS, TEMPLATES, main
+from create_hayate.cli import FEATURES, FRONTENDS, RENDERERS, TEMPLATES, main
 
 
 def _generate(
@@ -498,6 +499,10 @@ def test_production_preset_supports_the_explicit_global_http_entrypoint(
         ("--template", "workers", "--with", "unknown"),
         ("--template", "workers", "--with", ","),
         ("--template", "api", "--frontend", "vue"),
+        ("--template", "api", "--renderer", "htpy"),
+        ("--template", "workers", "--frontend", "htmx", "--renderer", "jx"),
+        ("--template", "workers", "--frontend", "htmx", "--renderer", "tdom"),
+        ("--template", "api", "--frontend", "htmx", "--renderer", "unknown"),
     ],
 )
 def test_unsupported_combinations_fail_before_writing(tmp_path, monkeypatch, capsys, args):
@@ -517,7 +522,22 @@ def test_rejects_existing_directory(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize(
     "name",
-    ["My-App", "app_x", "1app", "-app", "app!", "", "mcp", "hayate-sql"],
+    [
+        "My-App",
+        "app_x",
+        "1app",
+        "-app",
+        "app!",
+        "",
+        "mcp",
+        "hayate-sql",
+        "htpy",
+        "jinja2",
+        "jx",
+        "mypy",
+        "playwright",
+        "tdom",
+    ],
 )
 def test_rejects_invalid_names(tmp_path, monkeypatch, name):
     monkeypatch.chdir(tmp_path)
@@ -662,6 +682,151 @@ def test_htmx_profile_generates_a_runnable_same_origin_application(
         config = wrangler.read_text(encoding="utf-8")
         assert '[assets]\ndirectory = "./public"\nbinding = "ASSETS"' in config
         assert '"/app/*"' in config
+
+
+def test_implicit_htmx_renderer_preserves_explicit_jinja_output(
+    tmp_path,
+    monkeypatch,
+):
+    implicit_root = tmp_path / "implicit-renderer"
+    explicit_root = tmp_path / "explicit-renderer"
+    implicit_root.mkdir()
+    explicit_root.mkdir()
+
+    implicit = _generate(
+        implicit_root,
+        monkeypatch,
+        extra_args=("--frontend", "htmx"),
+    )
+    explicit = _generate(
+        explicit_root,
+        monkeypatch,
+        extra_args=("--frontend", "htmx", "--renderer", "jinja"),
+    )
+
+    assert _file_tree(implicit) == _file_tree(explicit)
+    assert not (implicit / "frontend/renderer.toml").exists()
+
+
+@pytest.mark.parametrize(
+    ("filename", "digest"),
+    [
+        ("__init__.py", "d6b0d575d40f692002557c675ae85c474686e5f9ea9ffd18ea5b06bf63f4f908"),
+        ("htpy.py", "641034142cda2d72056bd917711ead2a708d3bfd307033a45568270ef997949c"),
+        ("templates.py", "317ee22a9d4a12ac173a9b611c1189a1dea5ad8b748df9ec25b623a23024e661"),
+    ],
+)
+def test_htpy_workers_snapshot_matches_the_reviewed_renderer_commit(filename, digest):
+    source = (
+        Path("src/create_hayate/templates/frontend_runtimes/htmx-workers-htpy")
+        / "src/hayate_htmx"
+        / filename
+    )
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
+
+
+@pytest.mark.parametrize(
+    ("renderer", "template", "dependency", "requires_python", "native_view"),
+    [
+        (
+            "htpy",
+            "api",
+            '"hayate-htmx[htpy] @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@c133900998c487a44d40a103c52f2d469047deda"',
+            '">=3.12"',
+            "src/htmx_views.py",
+        ),
+        (
+            "htpy",
+            "workers",
+            '"htpy>=26.5,<27"',
+            '">=3.13,<3.14"',
+            "src/htmx_views.py",
+        ),
+        (
+            "jx",
+            "api",
+            '"hayate-htmx[jx] @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@c133900998c487a44d40a103c52f2d469047deda"',
+            '">=3.12"',
+            "components/app/page.jx",
+        ),
+        (
+            "tdom",
+            "api",
+            '"hayate-htmx[tdom] @ git+https://github.com/hayatepy/'
+            'hayate-htmx.git@c133900998c487a44d40a103c52f2d469047deda"',
+            '">=3.14,<3.15"',
+            "src/htmx_views.py",
+        ),
+    ],
+)
+def test_htmx_renderer_axis_generates_native_views_and_exact_dependencies(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    renderer,
+    template,
+    dependency,
+    requires_python,
+    native_view,
+):
+    assert renderer in RENDERERS
+    dest = _generate(
+        tmp_path,
+        monkeypatch,
+        template=template,
+        extra_args=("--frontend", "htmx", "--renderer", renderer),
+    )
+
+    project = (dest / "pyproject.toml").read_text(encoding="utf-8")
+    feature = (dest / "src/feature_htmx.py").read_text(encoding="utf-8")
+    profile = (dest / "frontend/renderer.toml").read_text(encoding="utf-8")
+    readme = (dest / "README.md").read_text(encoding="utf-8")
+
+    assert dependency in project
+    assert '"mypy>=1.18"' in project
+    assert f"requires-python = {requires_python}" in project
+    assert (dest / native_view).is_file()
+    assert (dest / "src/identity.pyi").is_file()
+    assert f'renderer = "{renderer}"' in profile
+    assert "c133900998c487a44d40a103c52f2d469047deda" in profile
+    assert f"`{renderer}` renderer" in readme
+    assert f"renderer={renderer}" in capsys.readouterr().out
+    assert "JinjaRenderer" not in feature
+    if template == "workers":
+        assert (dest / "src/hayate_htmx/htpy.py").is_file()
+        assert "hayate-htmx[" not in project
+        assert (dest / "scripts/embed_htmx_templates.py").is_file()
+        assert "from hayate.middleware import static_files\n\nfrom hayate_htmx" in feature
+        assert "from hayate_htmx.htpy import HtpyRenderer\nfrom htmx_views" in feature
+    else:
+        assert not (dest / "src/hayate_htmx").exists()
+        assert not (dest / "scripts/embed_htmx_templates.py").exists()
+
+    if renderer == "jx":
+        assert 'JxRenderer(_ROOT / "components")' in feature
+        for component in (
+            "auth/page.jx",
+            "app/page.jx",
+            "app/list.jx",
+            "app/item.jx",
+            "app/edit.jx",
+            "app/create_error.jx",
+        ):
+            assert (dest / "components" / component).is_file()
+    else:
+        assert f"{renderer.title()}Renderer()" in feature
+        views = (dest / "src/htmx_views.py").read_text(encoding="utf-8")
+        for view in (
+            "auth_page",
+            "app_page",
+            "todo_list",
+            "todo_item",
+            "edit_todo",
+            "create_error",
+        ):
+            assert f"def {view}(" in views
 
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))

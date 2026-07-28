@@ -22,6 +22,19 @@ the CLI allow-list, or the executable matrix drifts from that source.
 - Frontends remain intentionally incompatible with `--preset production`
   until each profile has a dedicated reviewed production contract.
 
+## htmx renderer contracts
+
+Jinja2 remains the compatibility default and the existing 112-composition full
+matrix is unchanged. The following additional boundary cases exercise each
+explicit renderer without replacing or weakening that matrix.
+
+| Renderer | Template | Status | Chromium | Real workerd |
+|---|---|---|---|---|
+| `htpy` | `api` | supported | yes | no |
+| `htpy` | `workers` | supported | no | yes |
+| `jx` | `api` | supported | yes | no |
+| `tdom` | `api` | experimental | yes | no |
+
 ## Exact CI toolchains
 
 | Tool | Version |
@@ -41,16 +54,20 @@ unrelated local server cannot satisfy their readiness probes.
 
 ## Pull-request smoke cases
 
-| Composition | Chromium | Real workerd |
-|---|---|---|
-| `htmx-api-none-class-base` | yes | no |
-| `htmx-workers-cloudflare-access-global-mcp-openapi-sql` | no | yes |
-| `react-api-none-class-openapi` | yes | no |
-| `react-workers-cloudflare-access-global-mcp-openapi-sql` | no | yes |
-| `astro-api-none-class-openapi` | yes | no |
-| `astro-workers-cloudflare-access-global-mcp-openapi-sql` | no | yes |
+| Composition | Renderer | Chromium | Real workerd |
+|---|---|---|---|
+| `htmx-api-none-class-base` | `jinja` | yes | no |
+| `htmx-workers-cloudflare-access-global-mcp-openapi-sql` | `jinja` | no | yes |
+| `htmx-api-none-class-base-renderer-htpy` | `htpy` | yes | no |
+| `htmx-workers-none-class-base-renderer-htpy` | `htpy` | no | yes |
+| `htmx-api-none-class-base-renderer-jx` | `jx` | yes | no |
+| `htmx-api-none-class-base-renderer-tdom` | `tdom` | yes | no |
+| `react-api-none-class-openapi` | — | yes | no |
+| `react-workers-cloudflare-access-global-mcp-openapi-sql` | — | no | yes |
+| `astro-api-none-class-openapi` | — | yes | no |
+| `astro-workers-cloudflare-access-global-mcp-openapi-sql` | — | no | yes |
 
-Pull requests run these 6 boundary cases. A weekly schedule and
+Pull requests run these 10 boundary cases. A weekly schedule and
 manual `workflow_dispatch` split all 112 compositions
 across 12 deterministic shards. Scheduled workflows run from the
 latest default-branch commit; manual runs can select `smoke` or `full`.
@@ -62,10 +79,12 @@ latest default-branch commit; manual runs can select `smoke` or `full`.
 2. Create a Python lock with `uv lock`, then install only with
    `uv sync --locked`.
 3. Run generated pytest, Ruff check, and Ruff format check.
-4. For React/Astro, install `package-lock.json` with `npm ci`, export and
+4. For explicit htmx renderers, run strict mypy on the renderer boundary and
+   import the generated application.
+5. For React/Astro, install `package-lock.json` with `npm ci`, export and
    drift-check OpenAPI, prove a stale artifact is rejected, regenerate it,
    typecheck, build, verify required assets, and run `npm audit`.
-5. Run focused Chromium smoke tests with console/page errors treated as
+6. Run focused Chromium smoke tests with console/page errors treated as
    failures, plus representative real-workerd routing contracts.
 
 The workflow and local entrypoint are:

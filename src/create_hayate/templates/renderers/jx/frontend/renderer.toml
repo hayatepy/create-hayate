@@ -1,0 +1,5 @@
+renderer = "jx"
+server_package = "$htmx_server_package"
+python = "3.12+"
+runtime = "api"
+status = "supported"
