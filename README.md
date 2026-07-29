@@ -118,12 +118,12 @@ records from its portable lock.
 
 `react` generates a pinned Node 24/Vite/React Router application in
 `frontend/`. It enables Hayate OpenAPI automatically, keeps JSON below `/api`,
-derives the `openapi-fetch` client entirely from checked-in generated types,
-and fails CI when the OpenAPI document drifts. Vite proxies `/api` locally;
-the Workers template serves the production build through Cloudflare Static
-Assets with API-first routing and SPA deep-link fallback. `npm ci`, typecheck,
-build, dependency audit, Chromium CRUD, and real-workerd routing are exercised
-in CI.
+generates Hayate's zero-runtime Fetch client and its types from the checked-in
+contract, and fails CI when the document, types, or client drifts. Vite proxies
+`/api` locally; the Workers template serves the production build through
+Cloudflare Static Assets with API-first routing and SPA deep-link fallback.
+`npm ci`, typecheck, build, dependency audit, Chromium CRUD, and real-workerd
+routing are exercised in CI.
 
 `astro` generates a pinned Node 24 static site in the same `frontend/`
 boundary. Public content is imported at build time; authenticated TODO data is

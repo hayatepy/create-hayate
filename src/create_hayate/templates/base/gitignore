@@ -14,3 +14,4 @@ python_modules/
 app.db
 openapi.json
 client/api-types.ts
+client/api-client.ts

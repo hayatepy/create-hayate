@@ -1,6 +1,5 @@
-import createClient from "openapi-fetch";
-
 import type { paths } from "./schema";
+import { createHayateClient } from "./transport";
 
 export type Todo =
   paths["/api/todos"]["get"]["responses"][200]["content"]["application/json"][number];
@@ -8,7 +7,7 @@ export type Todo =
 const runtimeOrigin =
   typeof window === "undefined" ? "https://build-time-data.invalid" : window.location.origin;
 
-const client = createClient<paths>({
+const client = createHayateClient({
   baseUrl: runtimeOrigin,
   credentials: "include",
 });
@@ -18,39 +17,39 @@ function requestError(response: Response): Error {
 }
 
 export async function listTodos(): Promise<Todo[]> {
-  const { data, error, response } = await client.GET("/api/todos");
-  if (error || !data) {
+  const response = await client.listTodos();
+  if (response.status !== 200) {
     throw requestError(response);
   }
-  return data;
+  return response.json();
 }
 
 export async function createTodo(title: string): Promise<Todo> {
-  const { data, error, response } = await client.POST("/api/todos", {
-    body: { title },
+  const response = await client.createTodo({
+    json: { title },
   });
-  if (error || !data) {
+  if (response.status !== 201) {
     throw requestError(response);
   }
-  return data;
+  return response.json();
 }
 
 export async function updateTodo(id: string, title: string): Promise<Todo> {
-  const { data, error, response } = await client.PATCH("/api/todos/{id}", {
-    params: { path: { id } },
-    body: { title },
+  const response = await client.updateTodo({
+    path: { id },
+    json: { title },
   });
-  if (error || !data) {
+  if (response.status !== 200) {
     throw requestError(response);
   }
-  return data;
+  return response.json();
 }
 
 export async function deleteTodo(id: string): Promise<void> {
-  const { error, response } = await client.DELETE("/api/todos/{id}", {
-    params: { path: { id } },
+  const response = await client.deleteTodo({
+    path: { id },
   });
-  if (error || !response.ok) {
+  if (response.status !== 204) {
     throw requestError(response);
   }
 }

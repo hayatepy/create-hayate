@@ -53,7 +53,7 @@ _REGISTRATION_ORDER = (
 )
 _DEPENDENCIES = {
     "admin": "jinja2==3.1.6",
-    "openapi": "hayate-openapi>=0.7,<0.8",
+    "openapi": "hayate-openapi>=0.8.1,<0.9",
     "mcp": "hayate-mcp>=0.12,<0.13",
     "sql": "hayate-sql>=0.1,<0.2",
 }
@@ -219,6 +219,99 @@ _MCP_SCHEMA_OPERATIONS = """
             };
         };
     };"""
+_MCP_CLIENT_TYPES = """
+
+type Operation8 = paths["/mcp"]["get"];
+type Operation8Input = OperationParameters<Operation8>;
+type Operation8Response = TypedResponse<Operation8>;
+
+type Operation9 = paths["/mcp"]["post"];
+type Operation9Input = OperationParameters<Operation9>;
+type Operation9Response = TypedResponse<Operation9>;
+
+type Operation10 = paths["/mcp"]["delete"];
+type Operation10Input = OperationParameters<Operation10>;
+type Operation10Response = TypedResponse<Operation10>;"""
+_MCP_CLIENT_INTERFACE = """
+  "get_mcp"(input?: Operation8Input, init?: ClientRequestInit): Promise<Operation8Response>;
+  "post_mcp"(input?: Operation9Input, init?: ClientRequestInit): Promise<Operation9Response>;
+  "delete_mcp"(input?: Operation10Input, init?: ClientRequestInit): Promise<Operation10Response>;"""
+_MCP_CLIENT_METHODS = """
+    ["get_mcp"]: async (
+      input: Operation8Input = {} as Operation8Input,
+      init: ClientRequestInit = {},
+    ): Promise<Operation8Response> => {
+      const runtimeInput = input as unknown as InputRecord;
+      let path = "/mcp";
+      path = encodePath(path, runtimeInput.path);
+      const url = buildUrl(options.baseUrl, path, runtimeInput.query);
+      const headers = await buildHeaders(options, runtimeInput, init);
+      const body: BodyInit | undefined = undefined;
+      const request: RequestInit = {
+        ...init,
+        method: "GET",
+        headers,
+      };
+      if (body !== undefined) request.body = body;
+      if (
+        request.credentials === undefined &&
+        options.credentials !== undefined
+      ) {
+        request.credentials = options.credentials;
+      }
+      const response = await fetchImpl(url, request);
+      return response as Operation8Response;
+    },
+    ["post_mcp"]: async (
+      input: Operation9Input = {} as Operation9Input,
+      init: ClientRequestInit = {},
+    ): Promise<Operation9Response> => {
+      const runtimeInput = input as unknown as InputRecord;
+      let path = "/mcp";
+      path = encodePath(path, runtimeInput.path);
+      const url = buildUrl(options.baseUrl, path, runtimeInput.query);
+      const headers = await buildHeaders(options, runtimeInput, init);
+      const body: BodyInit | undefined = undefined;
+      const request: RequestInit = {
+        ...init,
+        method: "POST",
+        headers,
+      };
+      if (body !== undefined) request.body = body;
+      if (
+        request.credentials === undefined &&
+        options.credentials !== undefined
+      ) {
+        request.credentials = options.credentials;
+      }
+      const response = await fetchImpl(url, request);
+      return response as Operation9Response;
+    },
+    ["delete_mcp"]: async (
+      input: Operation10Input = {} as Operation10Input,
+      init: ClientRequestInit = {},
+    ): Promise<Operation10Response> => {
+      const runtimeInput = input as unknown as InputRecord;
+      let path = "/mcp";
+      path = encodePath(path, runtimeInput.path);
+      const url = buildUrl(options.baseUrl, path, runtimeInput.query);
+      const headers = await buildHeaders(options, runtimeInput, init);
+      const body: BodyInit | undefined = undefined;
+      const request: RequestInit = {
+        ...init,
+        method: "DELETE",
+        headers,
+      };
+      if (body !== undefined) request.body = body;
+      if (
+        request.credentials === undefined &&
+        options.credentials !== undefined
+      ) {
+        request.credentials = options.credentials;
+      }
+      const response = await fetchImpl(url, request);
+      return response as Operation10Response;
+    },"""
 _FRONTEND_TEMPLATES = {
     "none": frozenset(TEMPLATES),
     **{frontend: frozenset(profile.templates) for frontend, profile in FRONTEND_PROFILES.items()},
@@ -862,6 +955,9 @@ simple = {{ limit = 60, period = 60 }}
         "mcp_openapi_paths": _MCP_OPENAPI_PATHS if "mcp" in plan.features else "",
         "mcp_schema_path": _MCP_SCHEMA_PATH if "mcp" in plan.features else "",
         "mcp_schema_operations": (_MCP_SCHEMA_OPERATIONS if "mcp" in plan.features else ""),
+        "mcp_client_types": _MCP_CLIENT_TYPES if "mcp" in plan.features else "",
+        "mcp_client_interface": _MCP_CLIENT_INTERFACE if "mcp" in plan.features else "",
+        "mcp_client_methods": _MCP_CLIENT_METHODS if "mcp" in plan.features else "",
         "requires_python": (
             ">=3.14,<3.15"
             if plan.renderer == "tdom"

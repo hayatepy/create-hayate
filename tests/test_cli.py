@@ -58,6 +58,9 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
         "$admin_production_checklist",
         "$admin_local_env_line",
         "$admin_dev_var_line",
+        "$mcp_client_types",
+        "$mcp_client_interface",
+        "$mcp_client_methods",
     }
     for path in dest.rglob("*"):
         if path.is_file():
@@ -138,7 +141,7 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
         ("api", (), '"hayate>=0.15.1,<0.16"'),
         ("workers", (), '"hayate>=0.15.1,<0.16"'),
         ("mcp", (), '"hayate-mcp>=0.12,<0.13"'),
-        ("api", ("--with", "openapi"), '"hayate-openapi>=0.7,<0.8"'),
+        ("api", ("--with", "openapi"), '"hayate-openapi>=0.8.1,<0.9"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
 )
@@ -165,6 +168,7 @@ def test_openapi_feature_overlays_typed_todo_contracts(tmp_path, monkeypatch):
 
     minimal_api = (minimal / "src/todo_api.py").read_text(encoding="utf-8")
     typed_api = (typed / "src/todo_api.py").read_text(encoding="utf-8")
+    export_script = (typed / "scripts/export_api.sh").read_text(encoding="utf-8")
     assert "def _validated_todo_id" in minimal_api
     assert (
         "from hayate_openapi import Constraints, Path, Query, StdlibProvider, endpoint, validated"
@@ -174,6 +178,8 @@ def test_openapi_feature_overlays_typed_todo_contracts(tmp_path, monkeypatch):
     assert 'Path(alias="id")' in typed_api
     assert "-> TodoResponse" in typed_api
     assert "def _validated_todo_id" not in typed_api
+    assert "--typescript-client client/api-client.ts" in export_script
+    assert "--typescript-types-import ./api-types.js" in export_script
 
 
 def _load_workers_launcher(dest):
@@ -847,6 +853,7 @@ def test_react_profile_generates_a_typed_same_origin_spa(
         "frontend/package-lock.json",
         "frontend/openapi.json",
         "frontend/src/api/schema.d.ts",
+        "frontend/src/api/transport.ts",
         "frontend/src/api/client.ts",
         "frontend/src/App.tsx",
         "frontend/public/_headers",
@@ -860,7 +867,7 @@ def test_react_profile_generates_a_typed_same_origin_spa(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"hayate-openapi>=0.7,<0.8"' in project
+    assert '"hayate-openapi>=0.8.1,<0.9"' in project
     assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
         encoding="utf-8"
     )
@@ -877,15 +884,21 @@ def test_react_profile_generates_a_typed_same_origin_spa(
         '"react": "19.2.8"',
         '"react-router": "8.3.0"',
         '"openapi-typescript": "7.13.0"',
-        '"openapi-fetch": "0.17.0"',
     ):
         assert dependency in package
+    assert "openapi-fetch" not in package
+    assert "openapi-fetch" not in lock
     assert '"api:check": "node scripts/sync-openapi.mjs --check"' in package
 
     client = (dest / "frontend/src/api/client.ts").read_text(encoding="utf-8")
-    assert 'from "./schema"' in client
+    transport = (dest / "frontend/src/api/transport.ts").read_text(encoding="utf-8")
+    assert 'from "./transport"' in client
     assert 'credentials: "include"' in client
     assert "interface Todo" not in client
+    assert 'import type { paths } from "./schema.js"' in transport
+    assert "createHayateClient" in transport
+    assert "encodeMultipart" not in transport
+    assert "openapi-fetch" not in transport
     schema = (dest / "frontend/src/api/schema.d.ts").read_text(encoding="utf-8")
     assert '"/api/todos"' in schema
     assert "export type $defs" in schema
@@ -927,6 +940,7 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
         "frontend/package-lock.json",
         "frontend/openapi.json",
         "frontend/src/api/schema.d.ts",
+        "frontend/src/api/transport.ts",
         "frontend/src/api/client.ts",
         "frontend/src/components/WorkspaceIsland.tsx",
         "frontend/src/data/public.ts",
@@ -944,7 +958,7 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
         assert (dest / expected).is_file(), expected
 
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"hayate-openapi>=0.7,<0.8"' in project
+    assert '"hayate-openapi>=0.8.1,<0.9"' in project
     assert "register_openapi(app)" in (dest / "src/generated_features.py").read_text(
         encoding="utf-8"
     )
@@ -954,25 +968,31 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
     assert '@app.get("/api/todos")' in todo_api
 
     package = (dest / "frontend/package.json").read_text(encoding="utf-8")
+    lock = (dest / "frontend/package-lock.json").read_text(encoding="utf-8")
     for dependency in (
         '"astro": "7.1.3"',
         '"@astrojs/preact": "6.0.1"',
         '"preact": "10.29.7"',
         '"openapi-typescript": "7.13.0"',
-        '"openapi-fetch": "0.17.0"',
     ):
         assert dependency in package
+    assert "openapi-fetch" not in package
+    assert "openapi-fetch" not in lock
     assert '"output: \\"static\\""' not in package
     assert 'output: "static"' in (dest / "frontend/astro.config.mjs").read_text(encoding="utf-8")
 
     island = (dest / "frontend/src/components/WorkspaceIsland.tsx").read_text(encoding="utf-8")
     page = (dest / "frontend/src/pages/index.astro").read_text(encoding="utf-8")
     client = (dest / "frontend/src/api/client.ts").read_text(encoding="utf-8")
+    transport = (dest / "frontend/src/api/transport.ts").read_text(encoding="utf-8")
     assert "useEffect" in island
     assert "listTodos()" in island
     assert "<WorkspaceIsland client:visible />" in page
-    assert 'from "./schema"' in client
+    assert 'from "./transport"' in client
     assert 'credentials: "include"' in client
+    assert 'import type { paths } from "./schema.js"' in transport
+    assert "createHayateClient" in transport
+    assert "openapi-fetch" not in transport
     assert not (dest / "frontend/src/pages/api").exists()
     assert not any((dest / "frontend/src").rglob("_actions.*"))
     assert "interface Todo" not in island
@@ -1012,11 +1032,15 @@ def test_typed_frontend_contract_includes_optional_mcp_routes(
 
     document = (dest / "frontend/openapi.json").read_text(encoding="utf-8")
     schema = (dest / "frontend/src/api/schema.d.ts").read_text(encoding="utf-8")
+    transport = (dest / "frontend/src/api/transport.ts").read_text(encoding="utf-8")
     assert '"/mcp"' in document
     assert '"/mcp"' in schema
     assert "get_mcp" in schema
     assert "post_mcp" in schema
     assert "delete_mcp" in schema
+    assert '"get_mcp"' in transport
+    assert '"post_mcp"' in transport
+    assert '"delete_mcp"' in transport
 
 
 def test_frontend_overlay_collision_fails_without_overwriting(tmp_path):

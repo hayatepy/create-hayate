@@ -4,6 +4,22 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.13.0] - 2026-07-30
+
+### Added
+
+- Generate and drift-check the first-party `hayate-openapi` typed Fetch client
+  beside every React and Astro OpenAPI document and type declaration,
+  including the optional MCP operation surface.
+
+### Changed
+
+- Generate projects on `hayate-openapi>=0.8.1,<0.9`, including helper
+  tree-shaking for strict frontend diagnostics.
+- Remove `openapi-fetch` from generated React and Astro runtime dependencies;
+  the generated Hayate transport uses only platform Fetch APIs while
+  preserving same-origin credentials and exact status-discriminated responses.
+
 ## [0.12.0] - 2026-07-30
 
 ### Added

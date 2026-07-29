@@ -8,6 +8,7 @@ const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectRoot = resolve(frontendRoot, "..");
 const checkedDocument = join(frontendRoot, "openapi.json");
 const checkedTypes = join(frontendRoot, "src", "api", "schema.d.ts");
+const checkedClient = join(frontendRoot, "src", "api", "transport.ts");
 const checkOnly = process.argv.includes("--check");
 const temporaryRoot = checkOnly
   ? mkdtempSync(join(tmpdir(), "hayate-openapi-"))
@@ -16,6 +17,9 @@ const generatedDocument = join(temporaryRoot, "openapi.json");
 const generatedTypes = checkOnly
   ? join(temporaryRoot, "schema.d.ts")
   : checkedTypes;
+const generatedClient = checkOnly
+  ? join(temporaryRoot, "transport.ts")
+  : checkedClient;
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -52,6 +56,10 @@ try {
       "0.1.0",
       "--output",
       generatedDocument,
+      "--typescript-client",
+      generatedClient,
+      "--typescript-types-import",
+      "./schema.js",
     ],
     { env: { ...process.env, PYTHONPATH: pythonPath } },
   );
@@ -68,6 +76,7 @@ try {
     const mismatches = [
       [checkedDocument, generatedDocument],
       [checkedTypes, generatedTypes],
+      [checkedClient, generatedClient],
     ].filter(
       ([checked, generated]) =>
         !existsSync(checked) ||
@@ -80,7 +89,7 @@ try {
       console.error("Run `npm run api:generate` and commit the updated artifacts.");
       process.exitCode = 1;
     } else {
-      console.log("OpenAPI document and generated TypeScript types are current.");
+      console.log("OpenAPI document, TypeScript types, and Hayate client are current.");
     }
   }
 } finally {

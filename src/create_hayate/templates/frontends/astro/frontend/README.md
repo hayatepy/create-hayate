@@ -36,10 +36,11 @@ HTML for private-data signatures and verifies the expected static routes.
 
 ## OpenAPI ownership
 
-`openapi.json` and `src/api/schema.d.ts` come from the same shared frontend
-contract as the React profile. Do not hand-edit them. Run
-`npm run api:generate` after changing Hayate routes and commit both artifacts.
-`npm run api:check` fails when either artifact drifts.
+`openapi.json`, `src/api/schema.d.ts`, and the dependency-free Fetch transport
+in `src/api/transport.ts` come from the same shared frontend contract as the
+React profile. Do not hand-edit them. Run `npm run api:generate` after changing
+Hayate routes and commit all three artifacts. `npm run api:check` fails when
+any artifact drifts.
 
 ## Deployment and optional SSR
 
