@@ -137,7 +137,7 @@ def test_rejects_global_workers_entrypoint_for_api(tmp_path, monkeypatch):
     [
         ("api", (), '"hayate>=0.15.1,<0.16"'),
         ("workers", (), '"hayate>=0.15.1,<0.16"'),
-        ("mcp", (), '"hayate-mcp>=0.11,<0.12"'),
+        ("mcp", (), '"hayate-mcp>=0.12,<0.13"'),
         ("api", ("--with", "openapi"), '"hayate-openapi>=0.7,<0.8"'),
         ("api", ("--with", "sql"), '"hayate-sql>=0.1,<0.2"'),
     ],
@@ -272,7 +272,7 @@ def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monk
     project = (dest / "pyproject.toml").read_text(encoding="utf-8")
     registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
 
-    assert '"hayate-mcp>=0.11,<0.12"' in project
+    assert '"hayate-mcp>=0.12,<0.13"' in project
     assert "\"rpds-py>=0.26; sys_platform != 'emscripten'\"" in project
     assert "[tool.uv]" in project
     assert "\"sys_platform == 'emscripten'\"" in project

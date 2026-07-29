@@ -4,8 +4,16 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.12.0] - 2026-07-30
+
 ### Added
 
+- Generate MCP 2026-07-28 as the default agent protocol on ASGI and
+  Cloudflare Workers, including stateless `server/discover`, request `_meta`,
+  explicit routing headers, and complete-result envelopes.
+- Exercise the generated 2026-07-28 identity/storage flow through direct
+  tests, real ASGI HTTP, native workerd, and the production preset while
+  retaining an explicit MCP 2025-11-25 compatibility test.
 - Add `--renderer jinja|htpy|jx|tdom` as an htmx-only generation axis. Jinja2
   remains the byte-for-byte default; htpy supports ASGI and Workers, while Jx
   and experimental Python 3.14 tdom target ASGI.
@@ -18,6 +26,12 @@ All notable changes to create-hayate are documented here.
 - Extend pull-request compatibility evidence from 6 to 10 cases with
   renderer-specific Chromium and real-workerd boundaries without weakening or
   replacing the existing 112-composition full matrix.
+
+### Changed
+
+- Generate projects on `hayate-mcp>=0.12,<0.13`; 2026-07-28 clients use POST
+  while generated OpenAPI remains truthful about the retained 2025 transport
+  compatibility routes.
 
 ### Fixed
 

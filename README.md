@@ -9,9 +9,9 @@ Composable, production-oriented project scaffolding for
 [hayate](https://github.com/hayatepy/hayate).
 
 The golden path creates one application core with safe request correlation,
-compact JSON access events, API routes, OpenAPI/Scalar, MCP 2025-11-25,
-checked SQL, Cloudflare Access identity, SQLite on ASGI, and D1 on Cloudflare
-Workers:
+compact JSON access events, API routes, OpenAPI/Scalar, stateless MCP
+2026-07-28, checked SQL, Cloudflare Access identity, SQLite on ASGI, and D1 on
+Cloudflare Workers:
 
 ```sh
 uvx create-hayate my-app --template workers --preset production
@@ -50,7 +50,7 @@ uvx create-hayate my-app \
 | built in | Validated request IDs and query-free structured access events across ASGI and Workers |
 | `admin` | Explicit identity-scoped TODO operations UI with checked SQL, redacted audit history, safe branding, and accessible localized controls |
 | `openapi` | Typed UUID/response contracts, OpenAPI 3.1.1, hardened Scalar, pinned TypeScript export |
-| `mcp` | MCP 2025-11-25 tools sharing request identity and storage |
+| `mcp` | MCP 2026-07-28 tools sharing request identity and storage; 2025-11-25 compatible |
 | `sql` | Migration-checked `hayate-sql`; SQLite on ASGI and D1 on Workers |
 | `--auth cloudflare-access` | Local explicit identity; production RS256/JWKS verification |
 

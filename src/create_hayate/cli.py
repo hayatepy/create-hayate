@@ -17,13 +17,13 @@ from .frontend_compatibility import FRONTEND_PROFILES, supports_frontend_plan
 TEMPLATES: dict[str, str] = {
     "api": "TODO API + pytest, served by uvicorn",
     "workers": "the same app on Cloudflare Python Workers",
-    "mcp": "MCP 2025-11-25 on ASGI and Cloudflare Workers",
+    "mcp": "MCP 2026-07-28 on ASGI and Cloudflare Workers",
 }
 DEFAULT_TEMPLATE = "api"
 FEATURES: dict[str, str] = {
     "admin": "fail-closed checked-SQL operations UI with persistent audit history",
     "openapi": "OpenAPI 3.1, Scalar docs, and typed-client export",
-    "mcp": "MCP 2025-11-25 tools on the same application",
+    "mcp": "MCP 2026-07-28 tools on the same application",
     "sql": "checked SQL contracts with SQLite and Cloudflare D1",
 }
 FRONTENDS: dict[str, str] = {
@@ -54,7 +54,7 @@ _REGISTRATION_ORDER = (
 _DEPENDENCIES = {
     "admin": "jinja2==3.1.6",
     "openapi": "hayate-openapi>=0.7,<0.8",
-    "mcp": "hayate-mcp>=0.11,<0.12",
+    "mcp": "hayate-mcp>=0.12,<0.13",
     "sql": "hayate-sql>=0.1,<0.2",
 }
 _MCP_CPYTHON_RPDS = "rpds-py>=0.26; sys_platform != 'emscripten'"
@@ -512,8 +512,12 @@ without changing `src/app.py`.
         mcp_section = """
 ## MCP
 
-The MCP 2025-11-25 endpoint is `/mcp`. Its `list_todos` tool reads the same
-identity context and SQL-backed storage as the HTTP API. The generated uv
+The MCP 2026-07-28 endpoint is `/mcp`. It uses handshake-free, stateless POST
+requests with `server/discover`, request metadata, and explicit routing headers.
+Its `list_todos` tool reads the same identity context and SQL-backed storage as
+the HTTP API. Compatibility with MCP 2025-11-25 clients remains available
+during migration, so generated OpenAPI also records the legacy GET and DELETE
+transport routes; 2026-07-28 clients only use POST. The generated uv
 configuration keeps Emscripten's reviewed `rpds-py` wheel separate from the
 native CPython resolution so the same universal lock installs on Workers and
 Python 3.14.
