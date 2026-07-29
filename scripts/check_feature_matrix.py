@@ -38,7 +38,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
   "hayate>=0.15.1,<0.16",
   "hayate-mcp>=0.12,<0.13",
-  "hayate-openapi>=0.7,<0.8",
+  "hayate-openapi>=0.8.1,<0.9",
   "hayate-sql>=0.1,<0.2",
   "jinja2==3.1.6",
 ]

@@ -171,6 +171,7 @@ def _expected_assets(case: FrontendCase) -> tuple[str, ...]:
             "frontend/package-lock.json",
             "frontend/openapi.json",
             "frontend/src/api/schema.d.ts",
+            "frontend/src/api/transport.ts",
             "frontend/dist/index.html",
         )
     return (
@@ -178,6 +179,7 @@ def _expected_assets(case: FrontendCase) -> tuple[str, ...]:
         "frontend/package-lock.json",
         "frontend/openapi.json",
         "frontend/src/api/schema.d.ts",
+        "frontend/src/api/transport.ts",
         "frontend/dist/index.html",
         "frontend/dist/404.html",
         "frontend/dist/principles/index.html",

@@ -24,11 +24,13 @@ Then run `npm run dev` here. Vite proxies `/api` to
 ## OpenAPI ownership
 
 `openapi.json` is exported from the generated Hayate application.
-`src/api/schema.d.ts` is generated from that document; do not hand-edit either
-file. Run `npm run api:generate` after changing routes, then commit both files.
-`npm run api:check` regenerates into a temporary directory and fails on drift.
-Application code imports its request and response types from that generated
-file, so there is no handwritten API model.
+`src/api/schema.d.ts` and the dependency-free Fetch transport in
+`src/api/transport.ts` are generated from that document; do not hand-edit any
+of the three files. Run `npm run api:generate` after changing routes, then
+commit all three artifacts. `npm run api:check` regenerates into a temporary
+directory and fails on drift. Application code imports its request and
+response types from the generated contract, so there is no handwritten API
+model or client runtime package.
 
 ## Authentication
 
