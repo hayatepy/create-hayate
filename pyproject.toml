@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "create-hayate"
-version = "0.13.0"
+version = "0.13.1"
 description = "Compose production Hayate projects for ASGI and Cloudflare Workers"
 readme = "README.md"
 requires-python = ">=3.12"
