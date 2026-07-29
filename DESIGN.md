@@ -51,7 +51,7 @@ uvx create-hayate my-app --template workers --no-input   # CI / スクリプト�
 | `api` runtime | ASGI起動 | 実ASGI HTTP |
 | `workers` runtime | wrangler/Pywrangler。既定は `WorkerEntrypoint` | 実workerd |
 | `openapi` | typed path/response contract、OpenAPI 3.1.1、Scalar、TypeScript export | runtime/schema/型生成 |
-| `mcp` | 2025-11-25、request context、storage共有 | ASGI/workerd |
+| `mcp` | 2026-07-28 stateless、request context、storage共有、2025互換 | ASGI/workerd |
 | `sql` | migration、query contract、typed facade、SQLite/D1 | compile/実D1 |
 | `admin` | 明示resource、owner scope、bounded query、永続redacted audit | SQLite/Chromium/workerd+D1 |
 | `cloudflare-access` | local明示identity、本番JWT/JWKS検証 | auth境界 |

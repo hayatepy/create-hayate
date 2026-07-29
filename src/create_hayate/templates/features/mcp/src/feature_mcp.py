@@ -1,4 +1,4 @@
-"""MCP 2025-11-25 tools over the same identity and storage boundaries."""
+"""MCP 2026-07-28 tools over the same identity and storage boundaries."""
 
 import json
 

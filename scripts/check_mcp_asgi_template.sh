@@ -51,25 +51,29 @@ uv run python -c \
   'import json,sys; assert json.loads(sys.argv[1])["title"] == "visible over ASGI MCP"' \
   "${created}"
 
-initialized="$(
+discovered="$(
   curl --fail --silent --max-time 10 \
     -X POST "http://127.0.0.1:${port}/mcp" \
     -H "accept: application/json, text/event-stream" \
     -H "content-type: application/json" \
-    --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"generated-asgi-check","version":"1.0.0"}}}'
+    -H "mcp-protocol-version: 2026-07-28" \
+    -H "mcp-method: server/discover" \
+    --data '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"generated-asgi-check","version":"1.0.0"}}}}'
 )"
 uv run python -c \
-  'import json,sys; assert json.loads(sys.argv[1])["result"]["protocolVersion"] == "2025-11-25"' \
-  "${initialized}"
+  'import json,sys; result=json.loads(sys.argv[1])["result"]; assert result["supportedVersions"] == ["2026-07-28"]; assert result["resultType"] == "complete"; assert "tools" in result["capabilities"]' \
+  "${discovered}"
 
 called="$(
   curl --fail --silent --max-time 10 \
     -X POST "http://127.0.0.1:${port}/mcp" \
     -H "accept: application/json, text/event-stream" \
     -H "content-type: application/json" \
-    -H "mcp-protocol-version: 2025-11-25" \
-    --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_todos","arguments":{}}}'
+    -H "mcp-protocol-version: 2026-07-28" \
+    -H "mcp-method: tools/call" \
+    -H "mcp-name: list_todos" \
+    --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"generated-asgi-check","version":"1.0.0"}},"name":"list_todos","arguments":{}}}'
 )"
 uv run python -c \
-  'import json,sys; result=json.loads(sys.argv[1])["result"]["structuredContent"]; assert result["subject"] == "anonymous"; assert any(todo["title"] == "visible over ASGI MCP" for todo in result["todos"])' \
+  'import json,sys; envelope=json.loads(sys.argv[1])["result"]; assert envelope["resultType"] == "complete"; result=envelope["structuredContent"]; assert result["subject"] == "anonymous"; assert any(todo["title"] == "visible over ASGI MCP" for todo in result["todos"])' \
   "${called}"
