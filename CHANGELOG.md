@@ -4,6 +4,14 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.13.1] - 2026-07-30
+
+### Fixed
+
+- Correct the published README release line and enforce project, runtime,
+  installed-distribution, README, and zero-dependency CLI metadata consistency
+  in the test suite.
+
 ## [0.13.0] - 2026-07-30
 
 ### Added
