@@ -44,6 +44,7 @@ _FEATURE_ORDER = ("sql", "admin", "mcp", "openapi")
 _PRODUCTION_FEATURES = frozenset({"sql", "mcp", "openapi"})
 _REGISTRATION_ORDER = (
     "observability",
+    "release",
     "access",
     "production",
     "admin",
@@ -59,6 +60,7 @@ _DEPENDENCIES = {
 }
 _MCP_CPYTHON_RPDS = "rpds-py>=0.26; sys_platform != 'emscripten'"
 _MCP_CPYTHON_MARKER = "sys_platform != 'emscripten'"
+_INITIAL_PROJECT_VERSION = "0.1.0"
 _MCP_UV_ENVIRONMENTS = """[tool.uv]
 environments = [
   "sys_platform == 'emscripten'",
@@ -540,6 +542,7 @@ def _feature_registration(plan: ScaffoldPlan) -> tuple[str, str]:
     if plan.auth == "cloudflare-access":
         enabled.add("access")
     if plan.production:
+        enabled.add("release")
         enabled.add("production")
     if plan.frontend == "htmx":
         enabled.add("htmx")
@@ -910,6 +913,12 @@ namespace_id = "1001"
 simple = { limit = 60, period = 60 }
 """.strip()
         )
+        bindings.append(
+            """
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+""".strip()
+        )
 
     deploy_vars: list[str] = []
     production_env = ""
@@ -927,14 +936,23 @@ simple = { limit = 60, period = 60 }
     if "admin" in plan.features:
         deploy_vars.append('ADMIN_EMAILS = "developer@example.com"')
     if plan.production:
-        deploy_vars.append('CORS_ORIGINS = "https://app.example.com"')
+        deploy_vars.extend(
+            [
+                f'APP_VERSION = "{_INITIAL_PROJECT_VERSION}"',
+                'CORS_ORIGINS = "https://app.example.com"',
+            ]
+        )
         production_env = f"""
 [env.production.vars]
 ENVIRONMENT = "production"
+APP_VERSION = "{_INITIAL_PROJECT_VERSION}"
 CORS_ORIGINS = "https://app.example.com"
 ACCESS_TEAM_DOMAIN = "https://your-team.cloudflareaccess.com"
 ACCESS_AUD = "replace-with-your-access-application-audience"
 {admin_production_vars}
+
+[env.production.version_metadata]
+binding = "CF_VERSION_METADATA"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -950,6 +968,7 @@ simple = {{ limit = 60, period = 60 }}
 
     variables = {
         "project_name": name,
+        "project_version": _INITIAL_PROJECT_VERSION,
         "frontend": plan.frontend,
         "api_prefix": "/api" if plan.frontend in {"htmx", "react", "astro"} else "",
         "mcp_openapi_paths": _MCP_OPENAPI_PATHS if "mcp" in plan.features else "",
@@ -1116,6 +1135,9 @@ markers = [
             '{"Cf-Access-Authenticated-User-Email": "developer@example.com"}'
             if plan.auth == "cloudflare-access"
             else "{}"
+        ),
+        "release_local_env_line": (
+            f',\n    APP_VERSION="{_INITIAL_PROJECT_VERSION}"' if plan.production else ""
         ),
         "admin_local_env_line": (
             ',\n    ADMIN_EMAILS="developer@example.com"' if "admin" in plan.features else ""

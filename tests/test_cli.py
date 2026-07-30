@@ -56,6 +56,7 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
     dest = _generate(tmp_path, monkeypatch, template=template)
     placeholders = {
         "$project_name",
+        "$project_version",
         "$feature_imports",
         "$feature_registrations",
         "$dependencies",
@@ -66,6 +67,7 @@ def test_no_generator_placeholder_survives_generation(tmp_path, monkeypatch, tem
         "$admin_production_checklist",
         "$admin_local_env_line",
         "$admin_dev_var_line",
+        "$release_local_env_line",
         "$mcp_client_types",
         "$mcp_client_interface",
         "$mcp_client_methods",
@@ -476,13 +478,22 @@ def test_production_preset_composes_the_complete_golden_path(tmp_path, monkeypat
 
     for dependency in ("hayate-openapi", "hayate-mcp", "hayate-sql"):
         assert dependency in project
-    for component in ("observability", "access", "production", "mcp", "openapi"):
+    for component in ("observability", "release", "access", "production", "mcp", "openapi"):
         assert f"register_{component}(app)" in registrations
+    calls = [
+        line.strip() for line in registrations.splitlines() if line.strip().startswith("register_")
+    ]
+    assert calls.index("register_release(app)") < calls.index("register_access(app)")
+    assert calls.index("register_access(app)") < calls.index("register_production(app)")
     assert "[[d1_databases]]" in wrangler
     assert "[[ratelimits]]" in wrangler
+    assert '[version_metadata]\nbinding = "CF_VERSION_METADATA"' in wrangler
     assert "[env.production.vars]" in wrangler
+    assert 'APP_VERSION = "0.1.0"' in wrangler
+    assert '[env.production.version_metadata]\nbinding = "CF_VERSION_METADATA"' in wrangler
     assert "[[env.production.d1_databases]]" in wrangler
     assert 'ENVIRONMENT = "production"' in wrangler
+    assert 'APP_VERSION="0.1.0"' in (dest / "src/runtime.py").read_text(encoding="utf-8")
     assert (dest / ".dev.vars").read_text(encoding="utf-8").startswith("ENVIRONMENT=local")
     assert ".dev.vars" in (dest / ".gitignore").read_text(encoding="utf-8")
     assert (dest / "PRODUCTION.md").is_file()

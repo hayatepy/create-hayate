@@ -3,6 +3,6 @@
 from types import SimpleNamespace
 
 LOCAL_ENV = SimpleNamespace(
-    ENVIRONMENT="local",
+    ENVIRONMENT="local"$release_local_env_line,
     CORS_ORIGINS="http://localhost:3000"$admin_local_env_line,
 )

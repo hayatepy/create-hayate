@@ -671,6 +671,23 @@ if [[ "${astro_mode}" == true ]]; then
 fi
 
 if [[ "${production_mode}" == true ]]; then
+  release_headers="$(
+    curl --fail --silent --head --max-time 5 \
+      "http://127.0.0.1:${port}/health"
+  )"
+  if ! grep -qiF "x-app-version: 0.1.0" <<<"${release_headers}"; then
+    echo "production Worker is missing its application release version" >&2
+    exit 1
+  fi
+  worker_version="$(
+    awk -F': ' 'tolower($1) == "x-worker-version" {gsub(/\r/, "", $2); print $2}' \
+      <<<"${release_headers}"
+  )"
+  if [[ ! "${worker_version}" =~ ^[A-Za-z0-9._:+-]{1,128}$ ]]; then
+    echo "production Worker returned no safe Cloudflare version ID" >&2
+    exit 1
+  fi
+  echo "contract[production].worker_version=${worker_version}"
   openapi="$(
     curl --fail --silent --max-time 5 \
       "${auth_header[@]}" \
