@@ -38,6 +38,7 @@ dependencies = []
 create-hayate = "create_hayate.cli:main"
 
 [project.urls]
+Homepage = "https://hayatepy.dev/get-started/first-app/"
 Repository = "https://github.com/hayatepy/create-hayate"
 Documentation = "https://github.com/hayatepy/create-hayate#readme"
 Changelog = "https://github.com/hayatepy/create-hayate/blob/main/CHANGELOG.md"
