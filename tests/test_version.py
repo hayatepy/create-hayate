@@ -49,3 +49,13 @@ def test_public_discovery_metadata_uses_the_canonical_site() -> None:
         assert f"[Start here]({_PUBLIC_HOME})" in content
         assert f"[Tested compatibility]({_PUBLIC_COMPATIBILITY})" in content
         assert _SUPERSEDED_DOCS_PREFIX not in content
+
+
+def test_frontend_evidence_routes_to_canonical_compatibility() -> None:
+    for relative_path in (
+        "docs/FRONTEND_COMPATIBILITY.md",
+        "scripts/check_frontend_matrix.py",
+    ):
+        content = (ROOT / relative_path).read_text(encoding="utf-8")
+        assert _PUBLIC_COMPATIBILITY in content
+        assert _SUPERSEDED_DOCS_PREFIX not in content

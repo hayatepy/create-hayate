@@ -592,7 +592,7 @@ uv run python scripts/check_frontend_matrix.py matrix --scope full
 ```
 
 The broader Hayate package-version contract remains in the ecosystem
-[compatibility matrix](https://github.com/hayatepy/.github/blob/main/docs/COMPATIBILITY.md).
+[compatibility matrix](https://hayatepy.dev/evidence/compatibility/).
 """
 
 
