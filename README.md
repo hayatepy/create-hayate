@@ -1,8 +1,8 @@
 # create-hayate
 
-> **Hayate ecosystem:** [Start here](https://github.com/hayatepy/.github/blob/main/docs/START.md)
+> **Hayate ecosystem:** [Start here](https://hayatepy.dev/)
 > · [Production golden app](https://github.com/hayatepy/golden-app)
-> · [Tested compatibility](https://github.com/hayatepy/.github/blob/main/docs/COMPATIBILITY.md)
+> · [Tested compatibility](https://hayatepy.dev/evidence/compatibility/)
 > · [Frontend matrix](docs/FRONTEND_COMPATIBILITY.md)
 
 Composable, production-oriented project scaffolding for

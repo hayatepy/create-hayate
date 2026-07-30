@@ -10,6 +10,10 @@ import pytest
 from create_hayate import cli
 from create_hayate.cli import FEATURES, FRONTENDS, RENDERERS, TEMPLATES, main
 
+_PUBLIC_HOME = "https://hayatepy.dev/"
+_PUBLIC_COMPATIBILITY = "https://hayatepy.dev/evidence/compatibility/"
+_SUPERSEDED_DOCS_PREFIX = "https://github.com/hayatepy/.github/blob/main/docs/"
+
 
 def _generate(
     tmp_path,
@@ -40,6 +44,10 @@ def test_generates_a_complete_project(tmp_path, monkeypatch, template):
     ):
         assert (dest / expected).is_file(), expected
     assert 'name = "demo-app"' in (dest / "pyproject.toml").read_text(encoding="utf-8")
+    readme = (dest / "README.md").read_text(encoding="utf-8")
+    assert f"[Start here]({_PUBLIC_HOME})" in readme
+    assert f"[Tested compatibility]({_PUBLIC_COMPATIBILITY})" in readme
+    assert _SUPERSEDED_DOCS_PREFIX not in readme
     assert (dest / "wrangler.toml").is_file() is (template != "api")
 
 
