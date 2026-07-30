@@ -41,6 +41,19 @@ if [[ "${ready}" != true ]]; then
   exit 1
 fi
 
+release_headers="$(
+  curl --fail --silent --head --max-time 10 \
+    "http://127.0.0.1:${port}/health"
+)"
+if ! grep -qiF "x-app-version: 0.1.0" <<<"${release_headers}"; then
+  echo "generated ASGI response is missing its application release version" >&2
+  exit 1
+fi
+if grep -qiF "x-worker-version:" <<<"${release_headers}"; then
+  echo "portable ASGI response claimed a Cloudflare Worker version" >&2
+  exit 1
+fi
+
 auth_header="cf-access-authenticated-user-email: asgi@example.com"
 identity="$(
   curl --fail --silent --max-time 10 \

@@ -156,6 +156,7 @@ digest as JSON evidence.
 - secure response headers and a 1 MiB request-body ceiling;
 - a Cloudflare native rate-limit binding;
 - D1 migration and deployment configuration;
+- application and Cloudflare Worker version response correlation;
 - explicit secret, identity, CORS, abuse, observability, migration, and rollout
   checks in `PRODUCTION.md`.
 

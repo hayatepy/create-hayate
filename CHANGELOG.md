@@ -4,6 +4,13 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+### Added
+
+- Generate bounded `X-App-Version` and `X-Worker-Version` response correlation
+  for the production preset using Cloudflare's version-metadata binding, with
+  fail-closed protected traffic, CORS exposure, direct tests, and real-workerd
+  release evidence.
+
 ## [0.13.2] - 2026-07-30
 
 ### Changed

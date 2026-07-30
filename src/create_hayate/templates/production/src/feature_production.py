@@ -6,6 +6,8 @@ from typing import Any
 from hayate import Context, Hayate, HTTPException, Next
 from hayate.middleware import body_limit, cors, secure_headers
 
+from release_metadata import release_metadata
+
 _PLATFORM_PUBLIC_PATHS = {"/health"}
 
 
@@ -31,6 +33,11 @@ async def _platform_controls(c: Context, next_: Next) -> None:
         return
     if environment != "production" or c.env is None:
         raise HTTPException(503, title="Production environment is not configured")
+    app_version, worker_version = release_metadata(c.env)
+    if app_version is None:
+        raise HTTPException(503, title="Application version is not configured")
+    if worker_version is None:
+        raise HTTPException(503, title="Worker version metadata is not configured")
     if getattr(c.env, "DB", None) is None:
         raise HTTPException(503, title="D1 binding is not configured")
     limiter = getattr(c.env, "API_RATE_LIMITER", None)
@@ -62,6 +69,7 @@ def register(app: Hayate) -> None:
         cors(
             origin_resolver=_allowed_origin,
             allow_headers=("content-type", "mcp-protocol-version"),
+            expose_headers=("x-app-version", "x-request-id", "x-worker-version"),
             max_age=600,
         )
     )
