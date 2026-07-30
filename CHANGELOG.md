@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.14.0] - 2026-07-30
+
 ### Added
 
 - Generate bounded `X-App-Version` and `X-Worker-Version` response correlation
