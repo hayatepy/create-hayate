@@ -4,6 +4,8 @@ All notable changes to create-hayate are documented here.
 
 ## Unreleased
 
+## [0.13.2] - 2026-07-30
+
 ### Changed
 
 - Route the project and generated application discovery links through
