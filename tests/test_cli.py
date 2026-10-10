@@ -989,7 +989,7 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
     package = (dest / "frontend/package.json").read_text(encoding="utf-8")
     lock = (dest / "frontend/package-lock.json").read_text(encoding="utf-8")
     for dependency in (
-        '"astro": "7.1.3"',
+        '"astro": "7.2.8"',
         '"@astrojs/preact": "6.0.1"',
         '"preact": "10.29.7"',
         '"openapi-typescript": "7.13.0"',
