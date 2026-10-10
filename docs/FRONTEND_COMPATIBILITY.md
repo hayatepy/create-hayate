@@ -43,7 +43,7 @@ explicit renderer without replacing or weakening that matrix.
 | Python (Workers/full matrix) | 3.13.11 |
 | Node.js | 24.18.0 |
 | npm | 11.16.0 |
-| uv | 0.11.28 |
+| uv | 0.12.3 |
 
 Every run records the actual tool versions, wheel SHA-256, composition, phase,
 command, exit code, and duration in the uploaded
