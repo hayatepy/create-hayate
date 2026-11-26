@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import io
 import itertools
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -289,7 +290,10 @@ def test_mcp_template_is_a_workers_runtime_plus_the_mcp_component(tmp_path, monk
     registrations = (dest / "src/generated_features.py").read_text(encoding="utf-8")
 
     assert '"hayate-mcp>=0.12,<0.13"' in project
-    assert "\"rpds-py>=0.26; sys_platform != 'emscripten'\"" in project
+    metadata = tomllib.loads(project)
+    native_rpds = "rpds-py>=0.26; sys_platform != 'emscripten'"
+    assert native_rpds not in metadata["project"]["dependencies"]
+    assert native_rpds in metadata["dependency-groups"]["dev"]
     assert "[tool.uv]" in project
     assert "\"sys_platform == 'emscripten'\"" in project
     assert "\"sys_platform != 'emscripten'\"" in project
@@ -989,8 +993,8 @@ def test_astro_profile_generates_a_static_site_with_a_runtime_island(
     package = (dest / "frontend/package.json").read_text(encoding="utf-8")
     lock = (dest / "frontend/package-lock.json").read_text(encoding="utf-8")
     for dependency in (
-        '"astro": "7.1.3"',
-        '"@astrojs/preact": "6.0.1"',
+        '"astro": "7.4.13"',
+        '"@astrojs/preact": "6.1.6"',
         '"preact": "10.29.7"',
         '"openapi-typescript": "7.13.0"',
     ):
