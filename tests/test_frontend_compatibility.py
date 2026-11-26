@@ -157,7 +157,7 @@ def test_exact_toolchain_contract_fails_closed_on_drift():
 
     assert expected == {
         "python": "3.14.6",
-        "uv": "0.11.28",
+        "uv": "0.13.10",
         "node": "24.18.0",
         "npm": "11.16.0",
     }
