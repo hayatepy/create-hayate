@@ -853,7 +853,7 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
     global_entrypoint = plan.workers_entrypoint == "global"
     dependencies = ["hayate>=0.15.1,<0.16"]
     dependencies.extend(_DEPENDENCIES[feature] for feature in plan.features)
-    if "mcp" in plan.features:
+    if "mcp" in plan.features and plan.runtime != "workers":
         # hayate-mcp pins the Pyodide ABI-compatible rpds build only on
         # Emscripten. Tell uv to retain that platform fork instead of selecting
         # the older version for CPython to minimize a universal lock.
@@ -891,6 +891,12 @@ def _variables(name: str, plan: ScaffoldPlan) -> dict[str, str]:
         dev_dependencies = [
             f"{requirement}; {_MCP_CPYTHON_MARKER}" for requirement in dev_dependencies
         ]
+
+        if plan.runtime == "workers":
+            # pywrangler also installs project.dependencies into a host mirror
+            # constrained to Pyodide's versions. Keep the native floor in the
+            # dev group, which applies to uv sync but is absent from that mirror.
+            dev_dependencies.append(_MCP_CPYTHON_RPDS)
 
     feature_imports, feature_registrations = _feature_registration(plan)
     bindings: list[str] = []
