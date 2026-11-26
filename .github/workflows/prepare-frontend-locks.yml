@@ -1,0 +1,50 @@
+name: Prepare frontend lockfiles
+on:
+  push:
+    branches: [fix/frontend-runtime-compatibility]
+    paths:
+      - '.github/workflows/prepare-frontend-locks.yml'
+permissions:
+  contents: read
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        frontend: [astro, react]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.18.0"
+      - name: Resolve and audit the revised template
+        env:
+          FRONTEND: ${{ matrix.frontend }}
+        run: |
+          cd "src/create_hayate/templates/frontends/$FRONTEND/frontend"
+          node --input-type=module <<'JS'
+          import {readFileSync, writeFileSync} from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (process.env.FRONTEND === 'astro') {
+            pkg.dependencies.astro = '7.4.13';
+            pkg.dependencies['@astrojs/preact'] = '6.1.6';
+          } else {
+            pkg.devDependencies.vite = '8.3.8';
+          }
+          pkg.overrides['brace-expansion'] = '5.1.0';
+          pkg.overrides['js-yaml'] = '4.3.2';
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          JS
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund --audit-level=high || true
+          python - <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          data = base64.b64encode(gzip.compress(Path("package-lock.json").read_bytes(), mtime=0)).decode()
+          for offset in range(0, len(data), 5500):
+              print("LOCKFILE_DATA " + data[offset:offset+5500])
+          PY
+          npm audit --audit-level=high
